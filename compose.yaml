@@ -1,0 +1,71 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-zentwhook}
+      POSTGRES_USER: ${POSTGRES_USER:-zentwhook}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - zentwhook_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zentwhook} -d ${POSTGRES_DB:-zentwhook}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  app:
+    image: ghcr.io/zentworks/zentwhook:latest
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zentwhook}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-zentwhook}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      DEFAULT_LANGUAGE: ${DEFAULT_LANGUAGE:-de}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EVENT_RETENTION_DAYS: ${EVENT_RETENTION_DAYS:-30}
+      SUCCESS_RETENTION_DAYS: ${SUCCESS_RETENTION_DAYS:-14}
+      FAILED_RETENTION_DAYS: ${FAILED_RETENTION_DAYS:-90}
+      ALLOW_PRIVATE_DESTINATIONS: ${ALLOW_PRIVATE_DESTINATIONS:-false}
+      ALLOW_LOCALHOST_DESTINATIONS: ${ALLOW_LOCALHOST_DESTINATIONS:-false}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      API_TOKEN: ${API_TOKEN:-}
+    volumes:
+      - zentwhook_data:/data
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: ghcr.io/zentworks/zentwhook:latest
+    command: ["./scripts/start-worker.sh"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-zentwhook}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-zentwhook}
+      DEFAULT_LANGUAGE: ${DEFAULT_LANGUAGE:-de}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EVENT_RETENTION_DAYS: ${EVENT_RETENTION_DAYS:-30}
+      SUCCESS_RETENTION_DAYS: ${SUCCESS_RETENTION_DAYS:-14}
+      FAILED_RETENTION_DAYS: ${FAILED_RETENTION_DAYS:-90}
+      ALLOW_PRIVATE_DESTINATIONS: ${ALLOW_PRIVATE_DESTINATIONS:-false}
+      ALLOW_LOCALHOST_DESTINATIONS: ${ALLOW_LOCALHOST_DESTINATIONS:-false}
+    volumes:
+      - zentwhook_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "zentwhook.worker_health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  zentwhook_db:
+  zentwhook_data:

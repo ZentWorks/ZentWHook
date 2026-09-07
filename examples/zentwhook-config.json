@@ -1,0 +1,52 @@
+{
+  "version": "0.3.1",
+  "endpoints": [
+    {
+      "name": "Discord Proxy",
+      "description": "Simple 1:1 webhook gateway",
+      "slug": "discord-proxy",
+      "active": true,
+      "methods": ["POST"],
+      "content_types": ["*/*"],
+      "max_payload_bytes": 1048576,
+      "rate_limit_per_minute": 120,
+      "ip_allowlist": [],
+      "ip_denylist": [],
+      "auth_type": "none",
+      "auth_header_name": ""
+    }
+  ],
+  "destinations": [
+    {
+      "endpoint": "Discord Proxy",
+      "name": "Discord",
+      "active": true,
+      "request_mode": "passthrough",
+      "method": "POST",
+      "url": "https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN",
+      "query_params": {},
+      "headers": {},
+      "auth_type": "none",
+      "auth_header_name": "",
+      "timeout_seconds": 15,
+      "verify_tls": true,
+      "retry_attempts": 5,
+      "retry_delays": [30, 120, 600, 1800],
+      "retry_statuses": [429, 500, 502, 503, 504]
+    }
+  ],
+  "flows": [
+    {
+      "name": "Direkt",
+      "active": true,
+      "mode": "direct",
+      "endpoint": "Discord Proxy",
+      "condition_logic": "AND",
+      "rules": [],
+      "mappings": [],
+      "routes": [
+        {"destination": "Discord", "branch": "always", "mappings": []}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+<div class="kv">
+  <div>{{ _('Webhook') }}</div><div><a href="/endpoints/{{ endpoint.id }}">{{ endpoint.name }}</a></div>
+  <div>Request-ID</div><div><a href="/events/{{ event.id }}"><code>{{ event.request_id }}</code></a></div>
+  <div>Event-ID</div><div>{{ event.id }}</div>
+  <div>{{ _('Ziel') }}</div><div>{{ item.destination.name if item.destination else _('Destination entfernt') }}</div>
+  <div>{{ _('Status') }}</div><div>{{ _(item.status) }}</div>
+  <div>HTTP</div><div>{{ item.http_status or '-' }}</div>
+  <div>{{ _('Dauer') }}</div><div>{{ '%.0f'|format(item.duration_ms) }} ms</div>
+  <div>{{ _('Versuch') }}</div><div>{{ item.attempt_count }}</div>
+  {% if item.next_retry_at %}<div>{{ _('Nächster Retry') }}</div><div>{{ item.next_retry_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>{% endif %}
+  {% if item.error %}<div>{{ _('Fehler') }}</div><div>{{ item.error }}</div>{% endif %}
+</div>

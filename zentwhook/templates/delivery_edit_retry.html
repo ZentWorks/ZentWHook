@@ -1,0 +1,15 @@
+{% extends 'base.html' %}{% block content %}
+<div class="titlebar"><div><a class="small muted back-link" href="/deliveries/{{ item.id }}">← Delivery #{{ item.id }}</a><h1>{{ _('Edit & Retry') }}</h1></div></div>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="body_mode" value="{{ body_mode }}"><input type="hidden" name="body_encoding" value="{{ req.body_encoding if req.body_encoding else '' }}">
+<div class="panel"><div class="panelbody formgrid">
+  <div class="field"><label>{{ _('Methode') }}</label><select name="method">{% for m in ['POST','PUT','PATCH','GET','DELETE','HEAD','OPTIONS'] %}<option {% if req.method==m %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></div>
+  <div class="field"><label>URL</label><input class="input" name="url" value="{{ req.url }}" required></div>
+  <div class="field"><label>{{ _('Headers') }}</label><textarea name="headers" rows="8">{% for k,v in req.headers.items() %}{{ k }}: {{ v }}
+{% endfor %}</textarea></div>
+  <div class="field"><label>{{ _('Query') }}</label><textarea name="query" rows="8">{% for k,v in req.query.items() %}{{ k }}: {{ v }}
+{% endfor %}</textarea></div>
+  <div class="field full"><label>{{ _('Body') }}{% if body_mode == 'raw' %} · Raw{% if req.body_encoding == 'base64' %} · Base64{% endif %}{% else %} · JSON{% endif %}</label><textarea class="code" name="body" rows="18">{{ body_text }}</textarea></div>
+</div></div>
+<button class="btn primary">{{ _('Retry') }}</button></form>
+{% endblock %}

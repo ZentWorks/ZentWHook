@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="titlebar">
+  <div>
+    <a class="small muted back-link" href="/events">← {{ _('Events') }}</a>
+    <h1><svg class="ico page-icon"><use href="#i-compare"/></svg>{{ _('Compare') }}</h1>
+  </div>
+  <div class="small muted">{{ changed }} {{ _('Änderungen') }}</div>
+</div>
+<div class="panel diff-panel">
+<div class="diff-direction small muted">{{ _('Vergleich') }}: {{ old.received_at.strftime('%Y-%m-%d %H:%M:%S') }} → {{ current.received_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+  <div class="diff-head">
+    <div class="diff-side-title">
+      <span class="diff-side-label">{{ _('Alt') }}</span>
+      <div class="diff-event-id-row"><strong>Event-ID {{ old.id }}</strong></div>
+      <span class="mono diff-request-id">{{ old.request_id }}</span>
+      <span class="small muted">{{ old.received_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+    </div>
+    <div class="diff-side-title">
+      <span class="diff-side-label">{{ _('Aktuell') }}</span>
+      <div class="diff-event-id-row"><strong>Event-ID {{ current.id }}</strong></div>
+      <span class="mono diff-request-id">{{ current.request_id }}</span>
+      <span class="small muted">{{ current.received_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+    </div>
+  </div>
+  {% if rows %}
+  <div class="diff-grid" role="table" aria-label="JSON Diff">
+    <div class="diff-grid-inner">
+    {% for row in rows %}
+      <div class="diff-row" role="row">
+        <div class="diff-cell {{ row.left_kind }}" role="cell"><span class="diff-ln">{{ row.left_no or '' }}</span><span class="diff-mark">{{ '-' if row.left_kind=='removed' else ' ' }}</span><code>{{ row.left }}</code></div>
+        <div class="diff-cell {{ row.right_kind }}" role="cell"><span class="diff-ln">{{ row.right_no or '' }}</span><span class="diff-mark">{{ '+' if row.right_kind=='added' else ' ' }}</span><code>{{ row.right }}</code></div>
+      </div>
+    {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="panelbody empty">{{ _('Keine Unterschiede.') }}</div>
+  {% endif %}
+</div>
+{% endblock %}

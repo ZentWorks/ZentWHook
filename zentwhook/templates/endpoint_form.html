@@ -1,0 +1,45 @@
+{% extends 'base.html' %}{% block content %}
+<div class="titlebar"><div><a class="small muted" href="{% if item %}/endpoints/{{ item.id }}{% else %}/endpoints{% endif %}">← {{ _('Webhooks') }}</a><h1><svg class="ico page-icon"><use href="#i-webhook"/></svg>{{ item.name if item else _('Neuer Webhook') }}</h1></div></div>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post" action="/endpoints/save"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ item.id if item else '' }}">
+<div class="panel"><div class="panelhead">{{ _('Webhook') }}</div><div class="panelbody easyform">
+<div class="field"><label>{{ _('Name') }}</label><input class="input" name="name" required value="{{ item.name if item else '' }}" placeholder="z. B. Discord Proxy" autocomplete="off"></div>
+<div class="field"><label>{{ _('Endpoint-Bezeichnung') }} <span class="muted">({{ _('optional') }})</span></label><input class="input" name="slug" value="{{ item.slug if item else '' }}" placeholder="wird automatisch erzeugt" autocomplete="off"></div>
+<div class="field full"><label>{{ _('Beschreibung') }} <span class="muted">({{ _('optional') }})</span></label><input class="input" name="description" value="{{ item.description if item else '' }}" autocomplete="off"></div>
+<label class="check"><input type="checkbox" name="active" {% if not item or item.active %}checked{% endif %}> {{ _('Aktiv') }}</label>
+</div></div>
+
+<div class="endpoint-config-grid">
+<details class="advanced-panel" {% if item and item.auth and item.auth.auth_type!='none' %}open{% endif %}><summary>{{ _('Sicherheit') }} <span>{{ item.auth.auth_type if item and item.auth else _('Keine Authentifizierung') }}</span></summary><div class="advanced-body formgrid">
+<div class="field"><label>{{ _('Authentifizierung') }}</label><select name="auth_type"><option value="none">{{ _('Keine') }}</option>{% for v,n in [('bearer','Bearer Token'),('api_key','API Key'),('basic','Basic Auth'),('hmac','HMAC'),('custom','Custom Header')] %}<option value="{{ v }}" {% if item and item.auth and item.auth.auth_type==v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+<div class="field"><label>{{ _('Headername') }}</label><input class="input" name="auth_header_name" value="{{ item.auth.header_name if item and item.auth else '' }}" placeholder="X-API-Key" autocomplete="off"></div>
+<div class="field"><label>{{ _('Benutzername (Basic)') }}</label><input class="input" name="auth_username" value="{{ item.auth.username if item and item.auth else '' }}" autocomplete="off"></div>
+<div class="field"><label>Secret {% if item and item.auth and item.auth.secret_encrypted %}<span class="muted">({{ _('gespeichert') }})</span>{% endif %}</label><input class="input" type="password" name="auth_secret" autocomplete="new-password"></div>
+<div class="field"><label>{{ _('HMAC Algorithmus') }}</label><select name="hmac_algorithm"><option value="sha256">SHA256</option><option value="sha512" {% if item and item.auth and item.auth.hmac_algorithm=='sha512' %}selected{% endif %}>SHA512</option></select></div>
+<div class="field"><label>{{ _('HMAC Payload-Basis') }}</label><select name="hmac_payload_basis"><option value="raw_body">Raw Body</option><option value="utf8_text" {% if item and item.auth and item.auth.hmac_payload_basis=='utf8_text' %}selected{% endif %}>UTF-8 Text</option><option value="canonical_json" {% if item and item.auth and item.auth.hmac_payload_basis=='canonical_json' %}selected{% endif %}>Canonical JSON</option></select></div>
+</div></details>
+
+<details class="advanced-panel"><summary>{{ _('Erlaubte Requests') }} <span>{{ _('Standard: POST, alle Content-Types') }}</span></summary><div class="advanced-body formgrid">
+<div class="field full"><label>{{ _('HTTP-Methoden') }}</label><div class="checks">{% for m in ['POST','PUT','PATCH','GET','DELETE'] %}<label class="check"><input type="checkbox" name="methods" value="{{ m }}" {% if (item and m in item.methods) or (not item and m=='POST') %}checked{% endif %}> {{ m }}</label>{% endfor %}</div></div>
+<div class="field full"><label>{{ _('Content Types') }}</label><textarea name="content_types" rows="3">{{ item.content_types|join('\n') if item else '*/*' }}</textarea><span class="fieldhint">*/* = alle erlauben. Beispiele: application/json, application/*+json</span></div>
+</div></details>
+
+<details class="advanced-panel"><summary>{{ _('Limits & Zugriff') }} <span>{{ _('Nur bei Bedarf ändern') }}</span></summary><div class="advanced-body formgrid limits-access-grid">
+<div class="field"><label>{{ _('Max. Payload Bytes') }}</label><input class="input" type="number" name="max_payload_bytes" min="1024" value="{{ item.max_payload_bytes if item else 1048576 }}"></div>
+<div class="field"><label>{{ _('Rate Limit / Minute / IP') }}</label><input class="input" type="number" name="rate_limit_per_minute" min="1" value="{{ item.rate_limit_per_minute if item else 120 }}"></div>
+<div class="field"><label>{{ _('Request Timeout (s)') }}</label><input class="input" type="number" name="request_timeout_seconds" min="1" value="{{ item.request_timeout_seconds if item else 15 }}"></div>
+<div class="field"><label>{{ _('IP-Allowlist / CIDR') }}</label><textarea name="ip_allowlist" rows="4">{{ item.ip_allowlist|join('\n') if item else '' }}</textarea></div>
+<div class="field"><label>{{ _('IP-Denylist / CIDR') }}</label><textarea name="ip_denylist" rows="4">{{ item.ip_denylist|join('\n') if item else '' }}</textarea></div>
+<label class="check"><input type="checkbox" name="synchronous" {% if item and item.synchronous %}checked{% endif %}> {{ _('Synchron verarbeiten') }}</label>
+</div></details>
+
+<details class="advanced-panel"><summary>{{ _('Aufbewahrung') }} <span>{{ _('Globale Werte verwenden, wenn leer') }}</span></summary><div class="advanced-body formgrid">
+<div class="field"><label>{{ _('Success Tage') }}</label><input class="input" type="number" name="retention_success_days" value="{{ item.retention_success_days if item and item.retention_success_days else '' }}"></div>
+<div class="field"><label>{{ _('Failed Tage') }}</label><input class="input" type="number" name="retention_failed_days" value="{{ item.retention_failed_days if item and item.retention_failed_days else '' }}"></div>
+</div></details>
+
+</div>
+<div class="actions form-actions"><button class="btn primary"><svg class="ico"><use href="#i-save"/></svg>{{ _('Save') }}</button><a class="btn" href="{% if item %}/endpoints/{{ item.id }}{% else %}/endpoints{% endif %}">{{ _('Abbrechen') }}</a></div>
+</form>
+{% if item %}<form method="post" action="/endpoints/{{ item.id }}/delete" class="danger-zone"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn danger"><svg class="ico"><use href="#i-delete"/></svg>{{ _('Delete') }}</button></form>{% endif %}
+{% endblock %}

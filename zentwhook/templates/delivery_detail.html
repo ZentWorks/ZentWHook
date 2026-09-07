@@ -1,0 +1,16 @@
+{% extends 'base.html' %}{% block content %}
+<div class="titlebar">
+  <div>
+    <a class="small muted back-link" href="/events/{{ event.id }}">← {{ _('Request') }}</a>
+    <h1>{{ _('Delivery') }} #{{ item.id }}</h1>
+    <div class="small muted">{{ item.destination.name if item.destination else _('Destination entfernt') }}</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/deliveries/{{ item.id }}/edit-retry">{{ _('Edit & Retry') }}</a>
+    {% if item.status in ['failed','retrying'] %}<form method="post" action="/deliveries/{{ item.id }}/retry"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn primary">{{ _('Retry') }}</button></form>{% endif %}
+  </div>
+</div>
+<div class="panel"><div class="panelhead">{{ _('Delivery') }}</div><div class="panelbody" data-live-delivery data-url="/deliveries/{{ item.id }}/live-fragment" data-delivery-status="{{ item.status }}">{% include 'delivery_live_fragment.html' %}</div></div>
+<div class="split"><div class="panel"><div class="panelhead">{{ _('Request') }}</div><div class="panelbody"><pre class="code">{{ item.final_request_masked }}</pre></div></div><div class="panel"><div class="panelhead">{{ _('Antwort') }}</div><div class="panelbody"><pre class="code" data-live-delivery-response>{{ item.response_masked or _('Noch keine Antwort.') }}</pre></div></div></div>
+<div class="panel"><div class="panelhead">{{ _('Versuche') }}</div><div class="tablewrap"><table><thead><tr><th>#</th><th>{{ _('Zeit') }}</th><th>HTTP</th><th>{{ _('Dauer') }}</th><th>{{ _('Fehler') }}</th></tr></thead><tbody data-live-delivery-attempts>{% include 'delivery_attempt_rows.html' %}</tbody></table></div></div>
+{% endblock %}

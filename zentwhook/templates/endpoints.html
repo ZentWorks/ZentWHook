@@ -1,0 +1,6 @@
+{% extends 'base.html' %}{% block content %}
+<div class="titlebar"><h1><svg class="ico page-icon"><use href="#i-webhook"/></svg>{{ _('Webhooks') }}</h1><a class="btn primary" href="/endpoints/new"><svg class="ico"><use href="#i-plus"/></svg>{{ _('Webhook') }}</a></div>
+<div class="panel tablewrap"><table><thead><tr><th>Name</th><th>{{ _('Pfad') }}</th><th>{{ _('Methode') }}</th><th>Status</th></tr></thead><tbody>
+{% for x in items %}<tr class="clickable-row" data-href="/endpoints/{{ x.id }}" tabindex="0"><td><strong>{{ x.name }}</strong></td><td><code>/in/{{ x.slug }}</code></td><td>{{ x.methods|join(', ') }}</td><td><span class="status"><span class="dot {{ 'ok' if x.active else '' }}"></span>{{ _('Active') if x.active else _('Inactive') }}</span></td></tr>{% else %}<tr><td colspan="4" class="empty">{{ _('Noch keine Endpoints.') }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

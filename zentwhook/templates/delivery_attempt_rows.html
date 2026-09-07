@@ -1,0 +1,1 @@
+{% for a in attempts %}<tr><td>{{ a.attempt_no }}</td><td>{{ a.attempted_at.strftime('%Y-%m-%d %H:%M:%S') }}</td><td>{{ a.http_status or '-' }}</td><td>{{ '%.0f'|format(a.duration_ms) }} ms</td><td>{{ a.error or '-' }}</td></tr>{% else %}<tr><td colspan="5" class="empty">{{ _('Noch keine Versuche.') }}</td></tr>{% endfor %}

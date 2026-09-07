@@ -1,0 +1,9 @@
+{% extends 'base.html' %}{% block content %}
+<div class="titlebar"><div><a class="small muted" href="/endpoints/{{ item.id }}">← {{ item.name }}</a><h1>+ Flow</h1></div></div>
+<form method="post" action="/endpoints/{{ item.id }}/flows/new"><input type="hidden" name="_csrf" value="{{ csrf }}">
+<div class="wizardgrid">
+<label class="choicecard"><input type="radio" name="mode" value="direct" checked><div><strong>{{ _('Direkt') }}</strong><p>Request direkt weiterleiten. Im Normalfall reicht nur die Ziel-URL.</p></div></label>
+<label class="choicecard"><input type="radio" name="mode" value="conditional"><div><strong>{{ _('Entweder / Oder') }}</strong><p>Incoming-Daten prüfen und je nach Bedingung unterschiedliche Ziele aufrufen. Felder und Werte werden aus Beispiel-Events automatisch erkannt.</p></div></label>
+{% if existing_flows %}<label class="choicecard"><input type="radio" name="mode" value="copy"><div><strong>{{ _('Anderen Flow kopieren') }}</strong><p>Bestehenden Flow inklusive Regeln, Ziele und Mapping als Ausgangspunkt übernehmen.</p><select name="copy_flow_id" class="input" style="margin-top:10px">{% for f in existing_flows %}<option value="{{ f.id }}">{{ f.endpoint.name }} · {{ f.name }} · {{ 'Direkt' if f.mode=='direct' else 'Entweder / Oder' }} · {{ f.routes|length }} Ziele</option>{% endfor %}</select></div></label>{% endif %}
+</div><div class="actions"><button class="btn primary">{{ _('Weiter') }}</button><a class="btn" href="/endpoints/{{ item.id }}">{{ _('Abbrechen') }}</a></div></form>
+{% endblock %}

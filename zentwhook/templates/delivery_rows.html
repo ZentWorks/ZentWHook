@@ -1,0 +1,13 @@
+{% for d in deliveries %}
+<tr class="clickable-row" tabindex="0" data-href="/deliveries/{{ d.id }}">
+  <td>{{ d.destination.name if d.destination else '-' }}</td>
+  <td>{{ _(d.status) }}</td>
+  <td>{{ d.http_status or '-' }}</td>
+  <td>{{ '%.0f'|format(d.duration_ms) }} ms</td>
+  <td>{{ d.attempt_count }}</td>
+  <td>{% if d.status in ['failed','retrying'] %}<form method="post" action="/deliveries/{{ d.id }}/retry" style="display:inline"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn sm">{{ _('Retry') }}</button></form> <a class="btn sm" href="/deliveries/{{ d.id }}/edit-retry">{{ _('Edit & Retry') }}</a>{% else %}-{% endif %}</td>
+</tr>
+{% if d.error %}<tr><td colspan="6" class="small" style="color:#e98b8b">{{ d.error }}</td></tr>{% endif %}
+{% else %}
+<tr><td colspan="6" class="empty">{{ _('Keine Deliveries.') }}</td></tr>
+{% endfor %}

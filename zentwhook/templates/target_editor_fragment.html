@@ -1,0 +1,93 @@
+{% set request_mode = item.request_mode if item and item.request_mode else 'passthrough' %}
+<div class="target-editor-fragment" data-target-editor-fragment data-request-mode="{{ request_mode }}" data-sample-base="/endpoints/{{ endpoint.id }}/flows/{{ flow.id }}/targets/{% if route %}{{ route.id }}/edit{% else %}new{% endif %}">
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<script type="application/json" data-sample-body-json>{{ sample_body|tojson }}</script>
+<script type="application/json" data-sample-context-json>{{ sample_context|tojson }}</script>
+
+<form method="post" action="/endpoints/{{ endpoint.id }}/flows/{{ flow.id }}/targets/save" data-target-editor-form>
+<input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="modal" value="{{ 1 if modal else 0 }}"><input type="hidden" name="route_id" value="{{ route.id if route else '' }}"><input type="hidden" name="sample_event_id" value="{{ sample_event.id if sample_event else '' }}">
+{% if flow.mode=='direct' %}<input type="hidden" name="branch" value="always">{% endif %}
+
+<div class="easy-target-head">
+  <div><h2>{{ item.name if item else _('Neues Ziel') }}</h2><div class="muted small">{{ _('Webhook weiterleiten') }}</div></div>
+</div>
+
+<div class="panel easy-target-main"><div class="panelbody easyform">
+  <div class="field full"><label>{{ _('Ziel-URL') }}</label><input class="input input-lg" type="url" name="url" required value="{{ item.url if item else '' }}" placeholder="https://example.com/webhook" autocomplete="off"></div>
+  <div class="field"><label>{{ _('Name') }} <span class="muted">({{ _('optional') }})</span></label><input class="input" name="name" value="{{ item.name if item else '' }}" placeholder="wird aus der URL erkannt" autocomplete="off"></div>
+  {% if flow.mode!='direct' %}<div class="field"><label>{{ _('Wenn Bedingung') }}</label><select name="branch"><option value="matched" {% if branch=='matched' %}selected{% endif %}>{{ _('zutrifft') }}</option><option value="else" {% if branch=='else' %}selected{% endif %}>{{ _('nicht zutrifft') }}</option></select></div>{% endif %}
+</div></div>
+
+<div class="panel"><div class="panelhead"><span class="head-with-icon"><svg class="ico"><use href="#i-target"/></svg>{{ _('Was soll gesendet werden?') }}</span></div><div class="panelbody modechoices">
+  <label class="modechoice"><input type="radio" name="request_mode" value="passthrough" {% if request_mode=='passthrough' %}checked{% endif %}><span><strong>{{ _('Original-Request weiterleiten') }}</strong><em>{{ _('Methode, Body, Query und passende Headers werden automatisch übernommen.') }}</em></span></label>
+  <label class="modechoice"><input type="radio" name="request_mode" value="custom" {% if request_mode=='custom' %}checked{% endif %}><span><strong>{{ _('Request anpassen') }}</strong><em>{{ _('Nur wählen, wenn Felder umbenannt, ergänzt oder verändert werden sollen.') }}</em></span></label>
+</div></div>
+
+<div data-custom-request {% if request_mode!='custom' %}hidden{% endif %}>
+  <div class="panel"><div class="panelhead rowbetween"><span>{{ _('Body zusammenstellen') }}</span><div class="actions"><button type="button" class="btn sm" data-add-all-mappings>{{ _('Alle Body-Felder übernehmen') }}</button><button type="button" class="btn sm" data-add-static-mapping><svg class="ico"><use href="#i-plus"/></svg>{{ _('Statisches Feld') }}</button></div></div>
+  <div class="panelbody">
+    <div class="mapping-samplebar">
+      <label>{{ _('Beispiel-Event') }} <select data-target-sample-select>{% if not sample_event %}<option value="">{{ _('Noch kein Event') }}</option>{% endif %}{% for e in sample_events %}<option value="{{ e.id }}" {% if sample_event and e.id==sample_event.id %}selected{% endif %}>{{ e.received_at.strftime('%Y-%m-%d %H:%M:%S') }} · {{ e.request_id }}</option>{% endfor %}</select></label>
+      {% if not sample_event %}<span class="muted small">{{ _('Sende zuerst einen Test-Request. Danach erkennt ZentWHook Felder und Typen automatisch.') }}</span>{% endif %}
+    </div>
+    <div class="mapping-workbench">
+      <aside class="mapping-source">
+        <div class="mapping-source-title">{{ _('Incoming Body') }}</div>
+        <div class="mapping-source-list">{% for p,v,t in sample_paths %}<div class="dragfield" draggable="true" data-drag-path="{{ p }}" data-drag-type="{{ t }}"><strong>{{ p }}</strong><span>{{ v|string|truncate(80) }}</span><em>{{ t }}</em></div>{% else %}<div class="empty compact">{{ _('Noch keine Body-Felder erkannt.') }}</div>{% endfor %}</div>
+        {% if sample_aux_paths %}<details class="source-advanced"><summary>{{ _('Headers, Query & Meta') }}</summary><div>{% for p,v,t in sample_aux_paths %}<div class="dragfield" draggable="true" data-drag-path="{{ p }}" data-drag-type="{{ t }}"><strong>{{ p }}</strong><span>{{ v|string|truncate(80) }}</span><em>{{ t }}</em></div>{% endfor %}</div></details>{% endif %}
+      </aside>
+      <section class="mapping-builder">
+        <div class="mapping-dropzone" data-mapping-dropzone><strong>{{ _('Hierher ziehen') }}</strong><span>{{ _('ZentWHook erstellt das Mapping automatisch.') }}</span></div>
+        <div id="route-map-list" data-next="{{ route.mappings|length if route else 0 }}">{% if route %}{% for m in route.mappings %}
+          <div class="mapping-card" data-row data-map-row>
+            <div class="map-target"><label>{{ _('Outgoing Feld') }}</label><input class="input" name="map_target_{{ loop.index0 }}" value="{{ m.target_path }}" placeholder="z. B. username"><div class="map-meta map-target-meta" aria-hidden="true">&nbsp;</div></div>
+            <div class="map-arrow">←</div>
+            <div class="map-source-value"><label>{{ _('Quelle') }}</label><select name="map_source_type_{{ loop.index0 }}" data-map-source-type><option value="field" {% if m.source_type=='field' %}selected{% endif %}>{{ _('Incoming') }}</option><option value="static" {% if m.source_type=='static' %}selected{% endif %}>{{ _('Statisch') }}</option><option value="combine" {% if m.source_type=='combine' %}selected{% endif %}>{{ _('Kombinieren') }}</option></select><input class="input drop-path" data-map-source name="map_source_{{ loop.index0 }}" value="{{ m.source_value }}" placeholder="Incoming Feld oder Wert"><div class="map-meta"><span class="badge" data-map-type>{{ m.static_type }}</span><span data-map-value-preview></span></div></div>
+            <button type="button" class="btn sm map-remove" data-remove-row>×</button>
+            <details class="map-options"><summary>{{ _('Optional: Fallback & Transformation') }}</summary><div class="map-options-grid"><div class="field"><label>{{ _('Datentyp') }}</label><select name="map_static_type_{{ loop.index0 }}" data-map-static-type>{% for typ in ['string','number','boolean','null','object','array'] %}<option value="{{ typ }}" {% if m.static_type==typ %}selected{% endif %}>{{ typ }}</option>{% endfor %}</select></div><div class="field"><label>Fallback</label><input class="input" name="map_fallback_{{ loop.index0 }}" value="{{ m.fallback_json if m.fallback_json is not none else '' }}"></div><div class="field"><label>{{ _('Transformation') }}</label><select name="map_transform_{{ loop.index0 }}"><option value="">{{ _('Keine') }}</option>{% for op in ['lowercase','uppercase','trim','prefix','suffix','replace','substring','add','subtract','multiply','divide','round','invert','bool_map','unix_to_iso','iso_to_unix','date_format'] %}<option value="{{ op }}" {% if m.transforms and m.transforms[0].op==op %}selected{% endif %}>{{ op }}</option>{% endfor %}</select></div><div class="field"><label>{{ _('Argument') }}</label><input class="input" name="map_transform_arg_{{ loop.index0 }}" value="{{ m.transforms[0].arg if m.transforms else '' }}"></div></div></details>
+          </div>{% endfor %}{% endif %}</div>
+        <div class="mapping-preview"><div class="mapping-preview-head">{{ _('Outgoing Vorschau') }}</div><pre class="code" data-outgoing-preview>{}</pre></div>
+      </section>
+    </div>
+  </div></div>
+
+  <details class="advanced-panel" data-custom-method-panel><summary>{{ _('Request-Methode') }} <span>{{ _('Nur bei angepassten Requests') }}</span></summary><div class="advanced-body"><div class="field"><label>{{ _('Methode') }}</label><select name="method">{% for m in ['POST','PUT','PATCH','GET','DELETE'] %}<option {% if item and item.method==m %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></div></div></details>
+</div>
+
+<details class="advanced-panel"><summary>{{ _('Headers & Auth') }} <span>{{ _('Optional') }}</span></summary><div class="advanced-body formgrid">
+  <div class="field"><label>{{ _('Authentifizierung') }}</label><select name="auth_type"><option value="none">{{ _('Keine') }}</option>{% for v,n in [('bearer','Bearer Token'),('api_key','API Key'),('basic','Basic Auth'),('custom','Custom Header')] %}<option value="{{ v }}" {% if item and item.auth_type==v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div class="field"><label>{{ _('Headername') }}</label><input class="input" name="auth_header_name" value="{{ item.auth_header_name if item else '' }}"></div>
+  <div class="field"><label>{{ _('Benutzername') }}</label><input class="input" name="auth_username" value="{{ item.auth_username if item else '' }}"></div>
+  <div class="field"><label>Secret {% if item and item.auth_secret_encrypted %}<span class="muted">({{ _('gespeichert') }})</span>{% endif %}</label><input class="input" type="password" name="auth_secret" autocomplete="new-password"></div>
+  <div class="field"><label>{{ _('Zusätzliche Query Parameter') }}</label><textarea name="query_params" rows="4">{% if item %}{% for k,v in (item.query_params or {}).items() %}{{ k }}: {{ v }}{% if not loop.last %}\n{% endif %}{% endfor %}{% endif %}</textarea></div>
+  <div class="field"><label>{{ _('Zusätzliche Headers') }}</label><textarea name="headers" rows="4">{% if item %}{% for k,v in (item.headers or {}).items() %}{{ k }}: {{ v }}{% if not loop.last %}\n{% endif %}{% endfor %}{% endif %}</textarea></div>
+</div></details>
+
+
+<details class="advanced-panel"><summary>{{ _('Retry & Netzwerk') }} <span>{{ _('Automatische sinnvolle Defaults') }}</span></summary><div class="advanced-body formgrid">
+  <div class="field"><label>Timeout (s)</label><input class="input" type="number" name="timeout_seconds" value="{{ item.timeout_seconds if item else 15 }}"></div>
+  <div class="field"><label>{{ _('Max. Versuche') }}</label><input class="input" type="number" name="retry_attempts" value="{{ item.retry_attempts if item else 5 }}"></div>
+  <div class="field"><label>Retry Delays</label><textarea name="retry_delays" rows="4">{{ item.retry_delays|join('\n') if item else '30\n120\n600\n1800' }}</textarea></div>
+  <div class="field"><label>Retry HTTP Status</label><textarea name="retry_statuses" rows="4">{{ item.retry_statuses|join('\n') if item else '429\n500\n502\n503\n504' }}</textarea></div>
+  <label class="check"><input type="checkbox" name="retry_exponential" {% if item and item.retry_exponential %}checked{% endif %}> Exponential Backoff</label>
+</div></details>
+
+<details class="advanced-panel"><summary>{{ _('Erweitert') }} <span>{{ _('Normalerweise nicht nötig') }}</span></summary><div class="advanced-body formgrid">
+  <label class="check"><input type="checkbox" name="active" {% if not item or item.active %}checked{% endif %}> {{ _('Aktiv') }}</label>
+  <label class="check"><input type="checkbox" name="verify_tls" {% if not item or item.verify_tls %}checked{% endif %}> {{ _('TLS prüfen') }}</label>
+  <label class="check"><input type="checkbox" name="allow_private" {% if item and item.allow_private %}checked{% endif %}> {{ _('Private Ziele erlauben') }}</label>
+  <label class="check"><input type="checkbox" name="allow_localhost" {% if item and item.allow_localhost %}checked{% endif %}> {{ _('Localhost erlauben') }}</label>
+</div></details>
+
+<div class="actions sticky-actions"><button class="btn primary"><svg class="ico"><use href="#i-save"/></svg>{{ _('Speichern') }}</button>{% if modal %}<button class="btn" type="button" data-close-target-modal>{{ _('Abbrechen') }}</button>{% else %}<a class="btn" href="/endpoints/{{ endpoint.id }}/flows/{{ flow.id }}/edit">{{ _('Abbrechen') }}</a>{% endif %}</div>
+</form>
+{% if route %}<form method="post" action="/endpoints/{{ endpoint.id }}/flows/{{ flow.id }}/targets/{{ route.id }}/delete" class="danger-zone" data-target-delete-form><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="modal" value="{{ 1 if modal else 0 }}"><button class="btn danger"><svg class="ico"><use href="#i-delete"/></svg>{{ _('Ziel entfernen') }}</button></form>{% endif %}
+
+<template id="route-map-template"><div class="mapping-card" data-row data-map-row>
+  <div class="map-target"><label>{{ _('Outgoing Feld') }}</label><input class="input" name="map_target___i__" placeholder="z. B. username"><div class="map-meta map-target-meta" aria-hidden="true">&nbsp;</div></div>
+  <div class="map-arrow">←</div>
+  <div class="map-source-value"><label>{{ _('Quelle') }}</label><select name="map_source_type___i__" data-map-source-type><option value="field">{{ _('Incoming') }}</option><option value="static">{{ _('Statisch') }}</option><option value="combine">{{ _('Kombinieren') }}</option></select><input class="input drop-path" data-map-source name="map_source___i__" placeholder="Incoming Feld oder Wert"><div class="map-meta"><span class="badge" data-map-type>string</span><span data-map-value-preview></span></div></div>
+  <button type="button" class="btn sm map-remove" data-remove-row>×</button>
+  <details class="map-options"><summary>{{ _('Optional: Fallback & Transformation') }}</summary><div class="map-options-grid"><div class="field"><label>{{ _('Datentyp') }}</label><select name="map_static_type___i__" data-map-static-type><option value="string">string</option><option value="number">number</option><option value="boolean">boolean</option><option value="null">null</option><option value="object">object</option><option value="array">array</option></select></div><div class="field"><label>Fallback</label><input class="input" name="map_fallback___i__"></div><div class="field"><label>{{ _('Transformation') }}</label><select name="map_transform___i__"><option value="">{{ _('Keine') }}</option><option>lowercase</option><option>uppercase</option><option>trim</option><option>prefix</option><option>suffix</option><option>replace</option><option>substring</option><option>add</option><option>subtract</option><option>multiply</option><option>divide</option><option>round</option><option>invert</option><option>bool_map</option><option>unix_to_iso</option><option>iso_to_unix</option><option>date_format</option></select></div><div class="field"><label>{{ _('Argument') }}</label><input class="input" name="map_transform_arg___i__"></div></div></details>
+</div></template>
+</div>

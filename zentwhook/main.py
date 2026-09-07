@@ -42,10 +42,12 @@ app.mount('/static',StaticFiles(directory=str(BASE/'static')),name='static')
 async def common(request:Request,call_next):
     lang=request.cookies.get('zentwhook_lang',settings.default_language)
     sess=read_session(request.cookies.get('zentwhook_session'))
+    request.state.session_revoked=False
     if sess:
         with SessionLocal() as db:
             u=db.get(User,sess['user_id'])
-            if u:lang=u.language or lang
+            if u and int(sess.get('session_version',1))==int(getattr(u,'session_version',1) or 1):lang=u.language or lang
+            else:request.state.session_revoked=True
     request.state.lang=lang if lang in ('de','en') else 'de'
     resp=await call_next(request)
     resp.headers['X-Content-Type-Options']='nosniff';resp.headers['X-Frame-Options']='DENY';resp.headers['Referrer-Policy']='same-origin';resp.headers['Permissions-Policy']='camera=(), microphone=(), geolocation=()';resp.headers['Content-Security-Policy']="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"

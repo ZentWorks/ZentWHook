@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import User, IncomingEndpoint, EndpointAuth, Event, Destination, Flow, FlowRule, Mapping, FlowDestination, RouteMapping, Delivery, DeliveryAttempt, Setting, Job
 from ..deps import require_user
-from ..security import encrypt, decrypt, read_session, require_csrf, mask_json
+from ..security import encrypt, decrypt, read_session, require_csrf, mask_json, hash_password, verify_password, sign_session
 from ..services import get_setting,set_setting,simulate_event,clone_event,manual_retry,raw_headers,queue_job,event_context,event_payload
 from ..engine import parse_json, flatten_paths
 from ..ssrf import validate_destination_url, SSRFError
@@ -26,7 +26,12 @@ def ctx(request, db, **extra):
     sess=read_session(request.cookies.get('zentwhook_session'))
     lang=user.language or settings.default_language
     from ..i18n import t
-    return {'request':request,'user':user,'csrf':sess['csrf'],'lang':lang,'_':lambda key:t(lang,key),'version':__version__,**extra}
+    path=request.url.path
+    if path.startswith(('/endpoints','/flows','/destinations')):nav_section='webhooks'
+    elif path.startswith(('/events','/deliveries')):nav_section='events'
+    elif path.startswith(('/settings','/api/docs')):nav_section='settings'
+    else:nav_section='dashboard'
+    return {'request':request,'user':user,'csrf':sess['csrf'],'lang':lang,'_':lambda key:t(lang,key),'version':__version__,'nav_section':nav_section,**extra}
 
 def render(request,db,name,**extra):
     return request.app.state.templates.TemplateResponse(request,name,ctx(request,db,**extra))
@@ -627,16 +632,36 @@ def api_docs(request:Request,db:Session=Depends(get_db)):
             paths.append({'method':method.upper(),'path':path,'summary':meta.get('summary') or meta.get('operationId','')})
     return render(request,db,'api_docs.html',paths=paths)
 
+def settings_view_context(db:Session, **extra):
+    return {'trusted':'\n'.join(get_setting(db,'trusted_proxies',[]) or []),'mask_fields':'\n'.join(get_setting(db,'mask_fields',[]) or []),'error':None,'password_error':None,'password_notice':None,**extra}
+
 @router.get('/settings')
 def settings_page(request:Request,db:Session=Depends(get_db)):
-    return render(request,db,'settings.html',trusted='\n'.join(get_setting(db,'trusted_proxies',[]) or []),mask_fields='\n'.join(get_setting(db,'mask_fields',[]) or []),error=None)
+    notice='Passwort wurde geändert. Alle anderen Sitzungen wurden beendet.' if request.query_params.get('password_changed')=='1' else None
+    return render(request,db,'settings.html',**settings_view_context(db,password_notice=notice))
 
 @router.post('/settings')
 async def settings_save(request:Request,db:Session=Depends(get_db)):
     f=await form_with_csrf(request);trusted=parse_lines(f.get('trusted_proxies'))
     try:validate_cidrs(trusted)
-    except ValueError as e:return render(request,db,'settings.html',trusted='\n'.join(trusted),mask_fields=f.get('mask_fields') or '',error=str(e))
+    except ValueError as e:return render(request,db,'settings.html',**settings_view_context(db,trusted='\n'.join(trusted),mask_fields=f.get('mask_fields') or '',error=str(e)))
     set_setting(db,'trusted_proxies',trusted);set_setting(db,'mask_fields',parse_lines(f.get('mask_fields')));return RedirectResponse('/settings',303)
+
+@router.post('/settings/password')
+async def settings_password(request:Request,db:Session=Depends(get_db)):
+    f=await form_with_csrf(request);user=require_user(request,db)
+    current=str(f.get('current_password') or '');new=str(f.get('new_password') or '');confirm=str(f.get('confirm_password') or '')
+    error=None
+    if not verify_password(current,user.password_hash):error='Aktuelles Passwort ist nicht korrekt.'
+    elif len(new)<10:error='Passwort muss mindestens 10 Zeichen haben.'
+    elif new!=confirm:error='Die neuen Passwörter stimmen nicht überein.'
+    elif verify_password(new,user.password_hash):error='Das neue Passwort muss sich vom aktuellen Passwort unterscheiden.'
+    if error:
+        response=render(request,db,'settings.html',**settings_view_context(db,password_error=error));response.status_code=400;return response
+    user.password_hash=hash_password(new);user.session_version=int(getattr(user,'session_version',1) or 1)+1;db.commit();db.refresh(user)
+    csrf=secrets.token_urlsafe(24);resp=RedirectResponse('/settings?password_changed=1',303)
+    resp.set_cookie('zentwhook_session',sign_session(user.id,csrf,user.session_version),httponly=True,samesite='lax',secure=settings.cookie_secure,max_age=43200)
+    return resp
 
 @router.get('/settings/export')
 def export_config(request:Request,db:Session=Depends(get_db)):

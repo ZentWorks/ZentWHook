@@ -15,6 +15,7 @@ class User(Base):
     role:Mapped[str]=mapped_column(String(30),default='admin')
     language:Mapped[str]=mapped_column(String(5),default='de')
     active:Mapped[bool]=mapped_column(Boolean,default=True)
+    session_version:Mapped[int]=mapped_column(Integer,default=1)
     created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
 
 class IncomingEndpoint(Base):

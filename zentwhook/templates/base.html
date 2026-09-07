@@ -37,25 +37,28 @@
       <span class="brand-text">Zent<span class="brand-accent">W</span>Hook</span>
     </div>
     <nav class="nav">
-      <a href="/dashboard"><svg class="ico"><use href="#i-dashboard"/></svg><span>{{ _('Dashboard') }}</span></a>
-      <a href="/endpoints"><svg class="ico"><use href="#i-webhook"/></svg><span>{{ _('Webhooks') }}</span></a>
-      <a href="/events"><svg class="ico"><use href="#i-events"/></svg><span>{{ _('Events') }}</span></a>
-      <a href="/settings"><svg class="ico"><use href="#i-settings"/></svg><span>{{ _('Settings') }}</span></a>
+      <a href="/dashboard"{% if nav_section=='dashboard' %} class="active" aria-current="page"{% endif %}><svg class="ico"><use href="#i-dashboard"/></svg><span>{{ _('Dashboard') }}</span></a>
+      <a href="/endpoints"{% if nav_section=='webhooks' %} class="active" aria-current="page"{% endif %}><svg class="ico"><use href="#i-webhook"/></svg><span>{{ _('Webhooks') }}</span></a>
+      <a href="/events"{% if nav_section=='events' %} class="active" aria-current="page"{% endif %}><svg class="ico"><use href="#i-events"/></svg><span>{{ _('Events') }}</span></a>
+      <a href="/settings"{% if nav_section=='settings' %} class="active" aria-current="page"{% endif %}><svg class="ico"><use href="#i-settings"/></svg><span>{{ _('Settings') }}</span></a>
     </nav>
-    <div class="sidebottom">
-      <button class="btn sm icon-btn" data-theme title="Theme" aria-label="Theme"><svg class="ico"><use href="#i-theme"/></svg></button>
-      <form method="post" action="/language/{{ 'en' if lang=='de' else 'de' }}"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn sm">{{ 'EN' if lang=='de' else 'DE' }}</button></form>
-      <form method="post" action="/logout"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn sm" title="{{ _('Logout') }}"><svg class="ico"><use href="#i-logout"/></svg><span class="logout-label">{{ _('Logout') }}</span></button></form>
+    <div class="sidefooter">
+      <div class="sideversion">v{{ version }}</div>
+      <div class="sidebottom">
+        <button class="btn sm icon-btn" data-theme title="Theme" aria-label="Theme"><svg class="ico"><use href="#i-theme"/></svg></button>
+        <form method="post" action="/language/{{ 'en' if lang=='de' else 'de' }}"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn sm">{{ 'EN' if lang=='de' else 'DE' }}</button></form>
+        <form method="post" action="/logout"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn sm" title="{{ _('Logout') }}"><svg class="ico"><use href="#i-logout"/></svg><span class="logout-label">{{ _('Logout') }}</span></button></form>
+      </div>
     </div>
   </aside>
   <main class="main">
     <header class="top"><div class="top-product"><img src="/static/zentwhook-logo.png" alt="" aria-hidden="true"><span class="muted">{{ _('Webhook Gateway') }}</span></div><div class="small muted">{{ user.name }}</div></header>
     <section class="content">{% block content %}{% endblock %}</section>
     <nav class="mobilebar">
-      <a href="/dashboard"><svg class="ico"><use href="#i-dashboard"/></svg><span>{{ _('Dashboard') }}</span></a>
-      <a href="/endpoints"><svg class="ico"><use href="#i-webhook"/></svg><span>{{ _('Webhooks') }}</span></a>
-      <a href="/events"><svg class="ico"><use href="#i-events"/></svg><span>{{ _('Events') }}</span></a>
-      <a href="/settings"><svg class="ico"><use href="#i-settings"/></svg><span>{{ _('Settings') }}</span></a>
+      <a href="/dashboard"{% if nav_section=='dashboard' %} class="active" aria-current="page"{% endif %}><svg class="ico"><use href="#i-dashboard"/></svg><span>{{ _('Dashboard') }}</span></a>
+      <a href="/endpoints"{% if nav_section=='webhooks' %} class="active" aria-current="page"{% endif %}><svg class="ico"><use href="#i-webhook"/></svg><span>{{ _('Webhooks') }}</span></a>
+      <a href="/events"{% if nav_section=='events' %} class="active" aria-current="page"{% endif %}><svg class="ico"><use href="#i-events"/></svg><span>{{ _('Events') }}</span></a>
+      <a href="/settings"{% if nav_section=='settings' %} class="active" aria-current="page"{% endif %}><svg class="ico"><use href="#i-settings"/></svg><span>{{ _('Settings') }}</span></a>
     </nav>
   </main>
 </div>

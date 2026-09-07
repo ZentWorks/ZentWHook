@@ -71,3 +71,11 @@ TRANSLATIONS['en'].update({
 'Maximales Alter (s)':'Maximum age (s)',
 'Timestamp Hilfe':'Rejects signatures whose Unix timestamp falls outside this time window.'
 })
+
+
+TRANSLATIONS['de'].update({
+'Konto & Sicherheit':'Konto & Sicherheit','Aktuelles Passwort':'Aktuelles Passwort','Neues Passwort':'Neues Passwort','Neues Passwort wiederholen':'Neues Passwort wiederholen','Passwort ändern':'Passwort ändern','Nach einer Passwortänderung werden alle anderen aktiven Sitzungen beendet.':'Nach einer Passwortänderung werden alle anderen aktiven Sitzungen beendet.','Aktuelles Passwort ist nicht korrekt.':'Aktuelles Passwort ist nicht korrekt.','Die neuen Passwörter stimmen nicht überein.':'Die neuen Passwörter stimmen nicht überein.','Das neue Passwort muss sich vom aktuellen Passwort unterscheiden.':'Das neue Passwort muss sich vom aktuellen Passwort unterscheiden.','Passwort wurde geändert. Alle anderen Sitzungen wurden beendet.':'Passwort wurde geändert. Alle anderen Sitzungen wurden beendet.'
+})
+TRANSLATIONS['en'].update({
+'Konto & Sicherheit':'Account & security','Aktuelles Passwort':'Current password','Neues Passwort':'New password','Neues Passwort wiederholen':'Repeat new password','Passwort ändern':'Change password','Nach einer Passwortänderung werden alle anderen aktiven Sitzungen beendet.':'After changing the password, all other active sessions are signed out.','Aktuelles Passwort ist nicht korrekt.':'The current password is incorrect.','Die neuen Passwörter stimmen nicht überein.':'The new passwords do not match.','Das neue Passwort muss sich vom aktuellen Passwort unterscheiden.':'The new password must be different from the current password.','Passwort wurde geändert. Alle anderen Sitzungen wurden beendet.':'Password changed. All other sessions have been signed out.'
+})

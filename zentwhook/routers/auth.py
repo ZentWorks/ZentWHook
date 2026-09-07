@@ -25,7 +25,7 @@ def setup(request:Request,name:str=Form(...),email:str=Form(...),password:str=Fo
     if db.scalar(select(func.count(User.id)))>0:return RedirectResponse('/login',303)
     if len(password)<10:return render(request,'setup.html',{'error':'Passwort muss mindestens 10 Zeichen haben.'},400)
     u=User(name=name.strip(),email=email.strip().lower(),password_hash=hash_password(password),language=language if language in ('de','en') else 'de',role='admin');db.add(u);db.commit();db.refresh(u)
-    csrf=secrets.token_urlsafe(24);resp=RedirectResponse('/dashboard',303);resp.set_cookie('zentwhook_session',sign_session(u.id,csrf),httponly=True,samesite='lax',secure=settings.cookie_secure,max_age=43200);return resp
+    csrf=secrets.token_urlsafe(24);resp=RedirectResponse('/dashboard',303);resp.set_cookie('zentwhook_session',sign_session(u.id,csrf,u.session_version),httponly=True,samesite='lax',secure=settings.cookie_secure,max_age=43200);return resp
 
 @router.get('/login')
 def login_page(request:Request,db:Session=Depends(get_db)):
@@ -39,7 +39,7 @@ def login(request:Request,email:str=Form(...),password:str=Form(...),db:Session=
     u=db.scalar(select(User).where(User.email==email.strip().lower()))
     if not u or not verify_password(password,u.password_hash):
         a.append(now);_attempts[ip]=a;return render(request,'login.html',{'error':'Ungültige Zugangsdaten.'},401)
-    _attempts.pop(ip,None);csrf=secrets.token_urlsafe(24);resp=RedirectResponse('/dashboard',303);resp.set_cookie('zentwhook_session',sign_session(u.id,csrf),httponly=True,samesite='lax',secure=settings.cookie_secure,max_age=43200);return resp
+    _attempts.pop(ip,None);csrf=secrets.token_urlsafe(24);resp=RedirectResponse('/dashboard',303);resp.set_cookie('zentwhook_session',sign_session(u.id,csrf,u.session_version),httponly=True,samesite='lax',secure=settings.cookie_secure,max_age=43200);return resp
 
 @router.post('/logout')
 async def logout(request:Request):
@@ -53,5 +53,5 @@ async def language(lang:str,request:Request,db:Session=Depends(get_db)):
     sess=read_session(request.cookies.get('zentwhook_session'))
     if sess:
         u=db.get(User,sess['user_id'])
-        if u:u.language=lang;db.commit()
+        if u and int(sess.get('session_version',1))==int(getattr(u,'session_version',1) or 1):u.language=lang;db.commit()
     r=RedirectResponse(request.headers.get('referer','/dashboard'),303);r.set_cookie('zentwhook_lang',lang,samesite='lax',secure=settings.cookie_secure);return r

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ZentWHook",
-    "version": "0.3.19"
+    "version": "0.3.20"
   },
   "paths": {
     "/setup": {
@@ -1862,6 +1862,22 @@
       "post": {
         "summary": "Settings Save",
         "operationId": "settings_save_settings_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings/password": {
+      "post": {
+        "summary": "Settings Password",
+        "operationId": "settings_password_settings_password_post",
         "responses": {
           "200": {
             "description": "Successful Response",

@@ -31,22 +31,27 @@ def verify_password(password, encoded):
         return hmac.compare_digest(actual,expected)
     except Exception: return False
 
-def sign_session(user_id:int, csrf:str, ttl=43200):
-    payload=f'{user_id}:{int(time.time())+ttl}:{csrf}'
+def sign_session(user_id:int, csrf:str, session_version:int=1, ttl=43200):
+    payload=f'{user_id}:{int(time.time())+ttl}:{csrf}:{int(session_version)}'
     sig=hmac.new(_read_key('session.key'),payload.encode(),hashlib.sha256).hexdigest()
     return base64.urlsafe_b64encode(f'{payload}:{sig}'.encode()).decode()
 def read_session(token:str|None):
     if not token:return None
     try:
-        raw=base64.urlsafe_b64decode(token).decode(); uid,exp,csrf,sig=raw.split(':',3); payload=f'{uid}:{exp}:{csrf}'
+        raw=base64.urlsafe_b64decode(token).decode(); parts=raw.split(':')
+        if len(parts)==4: # backward-compatible pre-0.3.20 session
+            uid,exp,csrf,sig=parts; session_version=1; payload=f'{uid}:{exp}:{csrf}'
+        elif len(parts)==5:
+            uid,exp,csrf,sv,sig=parts; session_version=int(sv); payload=f'{uid}:{exp}:{csrf}:{sv}'
+        else:return None
         good=hmac.new(_read_key('session.key'),payload.encode(),hashlib.sha256).hexdigest()
         if not hmac.compare_digest(sig,good) or int(exp)<time.time(): return None
-        return {'user_id':int(uid),'csrf':csrf}
+        return {'user_id':int(uid),'csrf':csrf,'session_version':session_version}
     except Exception:return None
 
 def require_csrf(request:Request):
     sess=read_session(request.cookies.get('zentwhook_session'))
-    if not sess: raise HTTPException(401,'Login required')
+    if not sess or getattr(request.state,'session_revoked',False): raise HTTPException(401,'Login required')
     token=request.headers.get('x-csrf-token')
     if not token: token=getattr(request.state,'form_csrf',None)
     if not token or not hmac.compare_digest(str(token),str(sess['csrf'])): raise HTTPException(403,'CSRF validation failed')

@@ -27,6 +27,7 @@ from ..models import (
 )
 from ..security import encrypt, require_csrf
 from ..services import clone_event, manual_retry, simulate_event
+from ..incoming_auth import validate_hmac_template
 from ..ssrf import SSRFError, validate_destination_url
 from ..validation import (
     validate_cidrs,
@@ -67,7 +68,12 @@ class EndpointAuthIn(BaseModel):
     secret: str | None = None
     header_name: str = ""
     hmac_algorithm: Literal["sha256", "sha512"] = "sha256"
-    hmac_payload_basis: Literal["raw_body", "utf8_text", "canonical_json"] = "raw_body"
+    hmac_payload_basis: Literal["raw_body", "utf8_text", "canonical_json", "custom"] = "raw_body"
+    hmac_payload_template: str = Field(default="{{raw_body}}", max_length=4000)
+    hmac_signature_prefix: str = Field(default="", max_length=80)
+    hmac_verify_timestamp: bool = False
+    hmac_timestamp_header: str = Field(default="", max_length=120)
+    hmac_timestamp_tolerance_seconds: int = Field(default=300, ge=1, le=86400)
 
 
 class EndpointIn(BaseModel):
@@ -168,6 +174,11 @@ def endpoint_out(e: IncomingEndpoint) -> dict[str, Any]:
             "header_name": a.header_name if a else "",
             "hmac_algorithm": a.hmac_algorithm if a else "sha256",
             "hmac_payload_basis": a.hmac_payload_basis if a else "raw_body",
+            "hmac_payload_template": a.hmac_payload_template if a else "{{raw_body}}",
+            "hmac_signature_prefix": a.hmac_signature_prefix if a else "",
+            "hmac_verify_timestamp": bool(a and a.hmac_verify_timestamp),
+            "hmac_timestamp_header": a.hmac_timestamp_header if a else "",
+            "hmac_timestamp_tolerance_seconds": a.hmac_timestamp_tolerance_seconds if a else 300,
             "secret_configured": bool(a and a.secret_encrypted),
         },
     }
@@ -240,6 +251,15 @@ def apply_endpoint(db: Session, e: IncomingEndpoint, payload: EndpointIn, creati
         validate_cidrs(payload.ip_allowlist)
         validate_cidrs(payload.ip_denylist)
         validate_header_name(payload.authentication.header_name)
+        if payload.authentication.type == "hmac":
+            if payload.authentication.hmac_payload_basis == "custom":
+                validate_hmac_template(payload.authentication.hmac_payload_template)
+            if payload.authentication.hmac_verify_timestamp:
+                validate_header_name(payload.authentication.hmac_timestamp_header)
+                if not payload.authentication.hmac_timestamp_header.strip():
+                    raise ValueError("Timestamp-Header ist für die HMAC Timestamp-Prüfung erforderlich")
+            if "\r" in payload.authentication.hmac_signature_prefix or "\n" in payload.authentication.hmac_signature_prefix:
+                raise ValueError("Ungültiges HMAC Signatur-Präfix")
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     duplicate = db.scalar(select(IncomingEndpoint).where(IncomingEndpoint.slug == slug, IncomingEndpoint.id != (e.id or -1)))
@@ -276,6 +296,11 @@ def apply_endpoint(db: Session, e: IncomingEndpoint, payload: EndpointIn, creati
     a.header_name = payload.authentication.header_name.strip()
     a.hmac_algorithm = payload.authentication.hmac_algorithm
     a.hmac_payload_basis = payload.authentication.hmac_payload_basis
+    a.hmac_payload_template = payload.authentication.hmac_payload_template.strip() or "{{raw_body}}"
+    a.hmac_signature_prefix = payload.authentication.hmac_signature_prefix
+    a.hmac_verify_timestamp = payload.authentication.hmac_verify_timestamp
+    a.hmac_timestamp_header = payload.authentication.hmac_timestamp_header.strip()
+    a.hmac_timestamp_tolerance_seconds = payload.authentication.hmac_timestamp_tolerance_seconds
     if new_secret:
         a.secret_encrypted = encrypt(new_secret)
 

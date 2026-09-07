@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ZentWHook",
-    "version": "0.3.16"
+    "version": "0.3.19"
   },
   "paths": {
     "/setup": {
@@ -3029,10 +3029,41 @@
             "enum": [
               "raw_body",
               "utf8_text",
-              "canonical_json"
+              "canonical_json",
+              "custom"
             ],
             "title": "Hmac Payload Basis",
             "default": "raw_body"
+          },
+          "hmac_payload_template": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Hmac Payload Template",
+            "default": "{{raw_body}}"
+          },
+          "hmac_signature_prefix": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Hmac Signature Prefix",
+            "default": ""
+          },
+          "hmac_verify_timestamp": {
+            "type": "boolean",
+            "title": "Hmac Verify Timestamp",
+            "default": false
+          },
+          "hmac_timestamp_header": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Hmac Timestamp Header",
+            "default": ""
+          },
+          "hmac_timestamp_tolerance_seconds": {
+            "type": "integer",
+            "maximum": 86400.0,
+            "minimum": 1.0,
+            "title": "Hmac Timestamp Tolerance Seconds",
+            "default": 300
           }
         },
         "type": "object",

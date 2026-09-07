@@ -49,3 +49,25 @@ TRANSLATIONS['en'].update({
 'Nein':'No',
 'Ja, löschen':'Yes, delete'
 })
+
+
+TRANSLATIONS['de'].update({
+'HMAC Payload-Template':'HMAC Payload-Template',
+'HMAC Custom Hilfe':'Bestimmt exakt, welche Daten signiert werden. Platzhalter: {{raw_body}}, {{utf8_body}}, {{canonical_json}} und {{header:HEADER-NAME}}. Text dazwischen wird unverändert übernommen.',
+'Signatur-Präfix':'Signatur-Präfix',
+'HMAC Präfix Hilfe':'Optional, z. B. sha256=. Wenn gesetzt, muss die empfangene Signatur mit diesem Präfix beginnen.',
+'Timestamp prüfen':'Timestamp prüfen',
+'Timestamp-Header':'Timestamp-Header',
+'Maximales Alter (s)':'Maximales Alter (s)',
+'Timestamp Hilfe':'Verwirft Signaturen, deren Unix-Timestamp außerhalb dieses Zeitfensters liegt.'
+})
+TRANSLATIONS['en'].update({
+'HMAC Payload-Template':'HMAC payload template',
+'HMAC Custom Hilfe':'Defines exactly what is signed. Placeholders: {{raw_body}}, {{utf8_body}}, {{canonical_json}} and {{header:HEADER-NAME}}. Text between placeholders is included unchanged.',
+'Signatur-Präfix':'Signature prefix',
+'HMAC Präfix Hilfe':'Optional, for example sha256=. When set, the received signature must start with this prefix.',
+'Timestamp prüfen':'Validate timestamp',
+'Timestamp-Header':'Timestamp header',
+'Maximales Alter (s)':'Maximum age (s)',
+'Timestamp Hilfe':'Rejects signatures whose Unix timestamp falls outside this time window.'
+})

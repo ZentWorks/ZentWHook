@@ -47,6 +47,11 @@ class EndpointAuth(Base):
     header_name:Mapped[str]=mapped_column(String(120),default='')
     hmac_algorithm:Mapped[str]=mapped_column(String(20),default='sha256')
     hmac_payload_basis:Mapped[str]=mapped_column(String(30),default='raw_body')
+    hmac_payload_template:Mapped[str]=mapped_column(Text,default='{{raw_body}}')
+    hmac_signature_prefix:Mapped[str]=mapped_column(String(80),default='')
+    hmac_verify_timestamp:Mapped[bool]=mapped_column(Boolean,default=False)
+    hmac_timestamp_header:Mapped[str]=mapped_column(String(120),default='')
+    hmac_timestamp_tolerance_seconds:Mapped[int]=mapped_column(Integer,default=300)
     endpoint:Mapped[IncomingEndpoint]=relationship(back_populates='auth')
 
 class Event(Base):

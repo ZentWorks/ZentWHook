@@ -82,7 +82,7 @@ async function submitTargetModalForm(form){
     }
     const html=await r.text();
     if(!r.ok)throw new Error(html||`HTTP ${r.status}`);
-    box.innerHTML=html;initTargetEditor(box);
+    box.innerHTML=html;initEndpointAuth(box);initTargetEditor(box);
   }catch(err){
     const old=box?.querySelector('.modal-ajax-error');if(old)old.remove();
     box?.insertAdjacentHTML('afterbegin',`<div class="error modal-ajax-error">${escapeHtml(String(err.message||err))}</div>`);
@@ -162,6 +162,22 @@ function parseConditionTarget(v){if(v==='true')return true;if(v==='false')return
 function evaluateConditionRow(row){const ctx=parseJsonScript(document,'[data-flow-sample-json]');const path=row.querySelector('[data-condition-field]')?.value||'',op=row.querySelector('[data-condition-operator]')?.value||'',target=parseConditionTarget(row.querySelector('[data-condition-value]')?.value||'');const actual=getPath(ctx,path);let ok=false;if(op==='exists')ok=actual!==undefined;else if(op==='not_exists')ok=actual===undefined;else if(op==='empty')ok=actual===undefined||actual===null||actual===''||(Array.isArray(actual)&&!actual.length)||(actual&&typeof actual==='object'&&!Array.isArray(actual)&&!Object.keys(actual).length);else if(op==='not_empty')ok=!(actual===undefined||actual===null||actual===''||(Array.isArray(actual)&&!actual.length)||(actual&&typeof actual==='object'&&!Array.isArray(actual)&&!Object.keys(actual).length));else if(op==='true')ok=actual===true;else if(op==='false')ok=actual===false;else if(op==='equals')ok=String(actual)===String(target);else if(op==='not_equals')ok=String(actual)!==String(target);else if(op==='contains')ok=String(actual).includes(String(target));else if(op==='not_contains')ok=!String(actual).includes(String(target));else if(op==='starts_with')ok=String(actual).startsWith(String(target));else if(op==='ends_with')ok=String(actual).endsWith(String(target));else if(['gt','lt','gte','lte'].includes(op)){const a=Number(actual),b=Number(target);ok=op==='gt'?a>b:op==='lt'?a<b:op==='gte'?a>=b:a<=b}const res=row.querySelector('[data-condition-result]');if(res)res.textContent=path?(ok?'✓':'×'):'';if(res)res.classList.toggle('ok',ok)}
 function initConditions(){document.querySelectorAll('[data-condition-row]').forEach(row=>{const path=row.querySelector('[data-condition-field]')?.value||'';const src=[...document.querySelectorAll(`[data-drag-path]`)].find(x=>x.dataset.dragPath===path);const meta=src?dragMetaFromElement(src):{path,type:'string',value:undefined};setConditionOperators(row,meta.type,row.querySelector('[data-condition-operator]')?.dataset.current);evaluateConditionRow(row)})}
 
+
+function initEndpointAuth(root=document){
+  const box=root.querySelector?.('[data-auth-config]')||root.querySelector?.('[data-endpoint-auth-config]');if(!box)return;
+  const type=box.querySelector('[data-auth-type]')?.value||'none',basis=box.querySelector('[data-hmac-payload-basis]')?.value||'raw_body',verify=box.querySelector('[data-hmac-verify-timestamp]')?.checked===true;
+  const visible={
+    header:['api_key','hmac','custom'].includes(type),
+    username:type==='basic',
+    secret:type!=='none',
+    hmac:type==='hmac',
+    'hmac-custom':type==='hmac'&&basis==='custom',
+    'hmac-timestamp':type==='hmac'&&verify
+  };
+  box.querySelectorAll('[data-auth-field]').forEach(el=>{el.hidden=!visible[el.dataset.authField]});
+  const summary=box.closest('details')?.querySelector('[data-auth-summary]');if(summary){const selected=box.querySelector('[data-auth-type] option:checked');summary.textContent=selected?.textContent?.trim()||type}
+}
+
 function targetRoot(el=document){return el.closest?.('[data-target-editor-fragment]')||document.querySelector('[data-target-editor-fragment]')}
 function targetSample(root){return{body:parseJsonScript(root,'[data-sample-body-json]'),context:parseJsonScript(root,'[data-sample-context-json]')}}
 function newMappingRow(root,meta=null,isStatic=false){const list=root.querySelector('#route-map-list'),tpl=root.querySelector('#route-map-template');if(!list||!tpl)return null;const i=Number(list.dataset.next||list.children.length);list.dataset.next=String(i+1);list.insertAdjacentHTML('beforeend',tpl.innerHTML.replaceAll('__i__',String(i)));const row=list.lastElementChild;if(isStatic){row.querySelector('[data-map-source-type]').value='static';row.querySelector('[data-map-source]').placeholder='Wert';row.querySelector('.map-target input')?.focus()}else if(meta)fillMappingRow(root,row,meta,true);updateMappingRow(root,row);renderOutgoingPreview(root);return row}
@@ -239,6 +255,9 @@ document.addEventListener('click',async e=>{
 document.addEventListener('submit',e=>{const submitted=e.target;if(isDeleteForm(submitted)){if(submitted.dataset.deleteConfirmed!=='1'){e.preventDefault();requestDeleteConfirmation(submitted);return}delete submitted.dataset.deleteConfirmed}const eventFilters=submitted.closest('[data-events-filter-form]');if(eventFilters){e.preventDefault();submitEventsFilter(eventFilters);return}const flow=submitted.closest('[data-flow-editor-form]');if(flow)flow.dataset.dirty='0';const dlg=submitted.closest('[data-target-dialog]');if(!dlg)return;const form=submitted.closest('[data-target-editor-form],[data-target-delete-form]');if(!form)return;e.preventDefault();submitTargetModalForm(form)});
 
 document.addEventListener('change',async e=>{
+  const authType=e.target.closest('[data-auth-type]');if(authType){initEndpointAuth(authType.closest('[data-auth-config]')?.parentElement||authType.closest('form')||document);return}
+  const hmacBasis=e.target.closest('[data-hmac-payload-basis]');if(hmacBasis){initEndpointAuth(hmacBasis.closest('form')||document);return}
+  const hmacTimestamp=e.target.closest('[data-hmac-verify-timestamp]');if(hmacTimestamp){initEndpointAuth(hmacTimestamp.closest('form')||document);return}
   const diffSelect=e.target.closest('[data-event-diff-select]');if(diffSelect){const scope=diffSelect.closest('[data-diff-selection-scope]');syncDiffSelection(scope?.dataset.diffSelectionScope||'');return}
   const exportToggle=e.target.closest('[data-export-secrets-toggle]');if(exportToggle){const form=exportToggle.closest('[data-export-form]'),button=form?.querySelector('[data-export-button]'),label=button?.querySelector('[data-export-button-label]');if(label)label.textContent=exportToggle.checked?button.dataset.labelSecret:button.dataset.labelNormal;button?.classList.toggle('danger',exportToggle.checked);return}
   if(e.target.closest('[data-flow-editor-form]')&&!e.target.closest('[data-flow-sample-select]'))markFlowDirty();
@@ -263,7 +282,7 @@ document.addEventListener('dragover',e=>{const target=e.target.closest('.drop-pa
 document.addEventListener('dragleave',e=>{const target=e.target.closest('.drop-path,[data-mapping-dropzone],[data-condition-dropzone]');target?.classList.remove('dragover')});
 document.addEventListener('drop',e=>{const target=e.target.closest('.drop-path,[data-mapping-dropzone],[data-condition-dropzone]');if(!target)return;e.preventDefault();target.classList.remove('dragover');let meta=draggedField;try{meta=JSON.parse(e.dataTransfer?.getData('application/x-zentwhook-field')||'null')||meta}catch{}if(!meta){const path=e.dataTransfer?.getData('text/plain')||'';meta={path,type:'string',value:''}}handleFieldDrop(target,meta)});
 
-document.addEventListener('DOMContentLoaded',()=>{if(localStorage.getItem('zentwhook-theme')==='light')document.body.classList.add('light');initConditions();initTargetEditor(document);initLiveDeliveries();document.querySelectorAll('[data-diff-selection-scope]').forEach(scope=>syncDiffSelection(scope.dataset.diffSelectionScope||''));const auto=targetDialog()?.dataset.autoTargetUrl;if(auto)loadTargetModal(auto)});
+document.addEventListener('DOMContentLoaded',()=>{if(localStorage.getItem('zentwhook-theme')==='light')document.body.classList.add('light');initEndpointAuth(document);initConditions();initTargetEditor(document);initLiveDeliveries();document.querySelectorAll('[data-diff-selection-scope]').forEach(scope=>syncDiffSelection(scope.dataset.diffSelectionScope||''));const auto=targetDialog()?.dataset.autoTargetUrl;if(auto)loadTargetModal(auto)});
 
 const terminalDeliveryStatuses=new Set(['success','failed','skipped','cancelled']);
 function startLiveDelivery(root){

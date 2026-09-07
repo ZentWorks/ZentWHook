@@ -14,7 +14,7 @@ It receives HTTP/webhook events, stores and inspects them, evaluates optional co
 
 - Incoming webhook endpoints with generated or custom slugs
 - Configurable HTTP methods and accepted Content-Types
-- Optional Bearer Token, API Key, Basic Auth, HMAC and custom-header authentication
+- Optional Bearer Token, API Key, Basic Auth, HMAC with custom signed payload templates and custom-header authentication
 - IP allowlist/denylist with CIDR support
 - Per-endpoint rate limits, payload limits and request timeouts
 - Trusted proxy support for real client IP handling

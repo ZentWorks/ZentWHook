@@ -54,11 +54,11 @@
   <details class="advanced-panel" data-custom-method-panel><summary>{{ _('Request-Methode') }} <span>{{ _('Nur bei angepassten Requests') }}</span></summary><div class="advanced-body"><div class="field"><label>{{ _('Methode') }}</label><select name="method">{% for m in ['POST','PUT','PATCH','GET','DELETE'] %}<option {% if item and item.method==m %}selected{% endif %}>{{ m }}</option>{% endfor %}</select></div></div></details>
 </div>
 
-<details class="advanced-panel"><summary>{{ _('Headers & Auth') }} <span>{{ _('Optional') }}</span></summary><div class="advanced-body formgrid">
-  <div class="field"><label>{{ _('Authentifizierung') }}</label><select name="auth_type"><option value="none">{{ _('Keine') }}</option>{% for v,n in [('bearer','Bearer Token'),('api_key','API Key'),('basic','Basic Auth'),('custom','Custom Header')] %}<option value="{{ v }}" {% if item and item.auth_type==v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
-  <div class="field"><label>{{ _('Headername') }}</label><input class="input" name="auth_header_name" value="{{ item.auth_header_name if item else '' }}"></div>
-  <div class="field"><label>{{ _('Benutzername') }}</label><input class="input" name="auth_username" value="{{ item.auth_username if item else '' }}"></div>
-  <div class="field"><label>Secret {% if item and item.auth_secret_encrypted %}<span class="muted">({{ _('gespeichert') }})</span>{% endif %}</label><input class="input" type="password" name="auth_secret" autocomplete="new-password"></div>
+<details class="advanced-panel"><summary>{{ _('Headers & Auth') }} <span>{{ _('Optional') }}</span></summary><div class="advanced-body formgrid" data-auth-config>
+  <div class="field"><label>{{ _('Authentifizierung') }}</label><select name="auth_type" data-auth-type><option value="none">{{ _('Keine') }}</option>{% for v,n in [('bearer','Bearer Token'),('api_key','API Key'),('basic','Basic Auth'),('custom','Custom Header')] %}<option value="{{ v }}" {% if item and item.auth_type==v %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></div>
+  <div class="field" data-auth-field="header"><label>{{ _('Headername') }}</label><input class="input" name="auth_header_name" value="{{ item.auth_header_name if item else '' }}"></div>
+  <div class="field" data-auth-field="username"><label>{{ _('Benutzername') }}</label><input class="input" name="auth_username" value="{{ item.auth_username if item else '' }}"></div>
+  <div class="field" data-auth-field="secret"><label>Secret {% if item and item.auth_secret_encrypted %}<span class="muted">({{ _('gespeichert') }})</span>{% endif %}</label><input class="input" type="password" name="auth_secret" autocomplete="new-password"></div>
   <div class="field"><label>{{ _('Zusätzliche Query Parameter') }}</label><textarea name="query_params" rows="4">{% if item %}{% for k,v in (item.query_params or {}).items() %}{{ k }}: {{ v }}{% if not loop.last %}\n{% endif %}{% endfor %}{% endif %}</textarea></div>
   <div class="field"><label>{{ _('Zusätzliche Headers') }}</label><textarea name="headers" rows="4">{% if item %}{% for k,v in (item.headers or {}).items() %}{{ k }}: {{ v }}{% if not loop.last %}\n{% endif %}{% endfor %}{% endif %}</textarea></div>
 </div></details>

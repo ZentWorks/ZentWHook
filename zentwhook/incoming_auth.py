@@ -79,7 +79,14 @@ def check_endpoint_auth(endpoint,headers:dict,body:bytes):
     if not a or a.auth_type=='none':return True,'No authentication'
     # Header lookup is case-insensitive.
     h={str(k).lower():str(v) for k,v in headers.items()}
-    secret=decrypt(a.secret_encrypted)
+    try:
+        secret=decrypt(a.secret_encrypted)
+    except Exception:
+        return False,'Authentication configuration invalid'
+    if not secret:
+        return False,'Authentication secret not configured'
+    if a.auth_type=='basic' and not (a.username or '').strip():
+        return False,'Authentication configuration invalid'
     if a.auth_type=='bearer':ok=hmac.compare_digest(h.get('authorization',''),f'Bearer {secret}')
     elif a.auth_type=='api_key':ok=hmac.compare_digest(h.get((a.header_name or 'x-api-key').lower(),''),secret)
     elif a.auth_type=='custom':ok=hmac.compare_digest(h.get((a.header_name or 'x-webhook-secret').lower(),''),secret)

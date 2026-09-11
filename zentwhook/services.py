@@ -181,12 +181,19 @@ def process_event(db,event_id:int,dry_run=False):
     db.commit();return simulations
 
 def _auth_headers(dest):
-    h=dict(dest.headers or {}); secret=decrypt(dest.auth_secret_encrypted)
-    if dest.auth_type=='bearer' and secret:h['Authorization']=f'Bearer {secret}'
-    elif dest.auth_type=='api_key' and secret:h[dest.auth_header_name or 'X-API-Key']=secret
-    elif dest.auth_type=='basic':
+    h=dict(dest.headers or {})
+    auth_type=dest.auth_type or 'none'
+    if auth_type=='none':return h
+    try:secret=decrypt(dest.auth_secret_encrypted)
+    except Exception as exc:raise ValueError('Destination authentication configuration invalid') from exc
+    if not secret:raise ValueError('Destination authentication secret not configured')
+    if auth_type=='bearer':h['Authorization']=f'Bearer {secret}'
+    elif auth_type=='api_key':h[dest.auth_header_name or 'X-API-Key']=secret
+    elif auth_type=='basic':
+        if not (dest.auth_username or '').strip():raise ValueError('Destination Basic Auth username not configured')
         import base64; token=base64.b64encode(f'{dest.auth_username}:{secret}'.encode()).decode();h['Authorization']=f'Basic {token}'
-    elif dest.auth_type=='custom' and secret:h[dest.auth_header_name or 'X-Webhook-Secret']=secret
+    elif auth_type=='custom':h[dest.auth_header_name or 'X-Webhook-Secret']=secret
+    else:raise ValueError('Destination authentication type invalid')
     return h
 
 def should_retry(dest,status,error):

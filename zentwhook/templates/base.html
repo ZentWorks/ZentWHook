@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}ZentWHook{% endblock %}</title>
-  <link rel="icon" type="image/png" href="/static/zentwhook-logo.png">
-  <link rel="stylesheet" href="/static/app.css">
-  <script defer src="/static/app.js"></script>
+  <link rel="icon" type="image/png" href="/static/zentwhook-logo.png?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
+  <script defer src="/static/app.js?v={{ asset_version }}"></script>
 </head>
 <body>
 <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -33,7 +33,7 @@
 <div class="shell">
   <aside class="side">
     <div class="brand">
-      <img class="brand-logo" src="/static/zentwhook-logo.png" alt="" aria-hidden="true">
+      <img class="brand-logo" src="/static/zentwhook-logo.png?v={{ asset_version }}" alt="" aria-hidden="true">
       <span class="brand-text">Zent<span class="brand-accent">W</span>Hook</span>
     </div>
     <nav class="nav">
@@ -52,7 +52,7 @@
     </div>
   </aside>
   <main class="main">
-    <header class="top"><div class="top-product"><img src="/static/zentwhook-logo.png" alt="" aria-hidden="true"><span class="muted">{{ _('Webhook Gateway') }}</span></div><div class="small muted">{{ user.name }}</div></header>
+    <header class="top"><div class="top-product"><img src="/static/zentwhook-logo.png?v={{ asset_version }}" alt="" aria-hidden="true"><span class="muted">{{ _('Webhook Gateway') }}</span></div><div class="small muted">{{ user.name }}</div></header>
     <section class="content">{% block content %}{% endblock %}</section>
     <nav class="mobilebar">
       <a href="/dashboard"{% if nav_section=='dashboard' %} class="active" aria-current="page"{% endif %}><svg class="ico"><use href="#i-dashboard"/></svg><span>{{ _('Dashboard') }}</span></a>

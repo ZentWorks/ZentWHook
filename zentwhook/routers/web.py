@@ -17,6 +17,7 @@ from ..config import settings
 from .. import __version__
 from ..validation import validate_cidrs,validate_header_name,validate_headers,validate_mapping_path,validate_methods,validate_content_types,validate_rule_operator
 from ..incoming_auth import validate_hmac_template
+from ..configuration import ConfigurationImportError, export_configuration, import_configuration
 
 router=APIRouter()
 
@@ -105,7 +106,7 @@ def sample_data_for_endpoint(db:Session, endpoint_id:int, sample_event_id:int|No
     return ev, paths, events
 
 def clone_destination(db:Session, source:Destination, endpoint_id:int, include_secret:bool=False):
-    d=Destination(endpoint_id=endpoint_id,name=source.name,description=source.description,active=source.active,kind=source.kind,method=source.method,request_mode=getattr(source,'request_mode','custom'),url=source.url,query_params=dict(source.query_params or {}),headers=dict(source.headers or {}),auth_type=source.auth_type,auth_username=source.auth_username,auth_secret_encrypted=source.auth_secret_encrypted if include_secret else '',auth_header_name=source.auth_header_name,timeout_seconds=source.timeout_seconds,verify_tls=source.verify_tls,retry_attempts=source.retry_attempts,retry_delays=list(source.retry_delays or []),retry_exponential=source.retry_exponential,retry_statuses=list(source.retry_statuses or []),allow_private=source.allow_private,allow_localhost=source.allow_localhost)
+    d=Destination(endpoint_id=endpoint_id,name=source.name,description=source.description,active=source.active,kind=source.kind,method=source.method,request_mode=getattr(source,'request_mode','custom'),url=source.url,query_params=dict(source.query_params or {}),headers=dict(source.headers or {}),auth_type=source.auth_type,auth_username=source.auth_username,auth_secret_encrypted=source.auth_secret_encrypted if include_secret and source.auth_type!='none' else '',auth_header_name=source.auth_header_name,timeout_seconds=source.timeout_seconds,verify_tls=source.verify_tls,retry_attempts=source.retry_attempts,retry_delays=list(source.retry_delays or []),retry_exponential=source.retry_exponential,retry_statuses=list(source.retry_statuses or []),allow_private=source.allow_private,allow_localhost=source.allow_localhost)
     db.add(d);db.flush();return d
 
 def clone_flow_to_endpoint(db:Session, source:Flow, endpoint_id:int, include_secrets:bool=False):
@@ -195,8 +196,8 @@ async def endpoint_save(request:Request,db:Session=Depends(get_db)):
     try:validate_cidrs(ep.ip_allowlist);validate_cidrs(ep.ip_denylist);validate_header_name((f.get('auth_header_name') or '').strip())
     except ValueError as e:return render(request,db,'endpoint_form.html',item=ep,error=str(e))
     if not eid: db.add(ep);db.flush(); ep.auth=EndpointAuth()
-    a=ep.auth or EndpointAuth(endpoint_id=ep.id);a.auth_type=f.get('auth_type') or 'none';a.username=(f.get('auth_username') or '').strip();a.header_name=(f.get('auth_header_name') or '').strip();a.hmac_algorithm=f.get('hmac_algorithm') or 'sha256';a.hmac_payload_basis=f.get('hmac_payload_basis') or 'raw_body';a.hmac_payload_template=(f.get('hmac_payload_template') or '{{raw_body}}').strip();a.hmac_signature_prefix=f.get('hmac_signature_prefix') or '';a.hmac_verify_timestamp=f.get('hmac_verify_timestamp')=='on';a.hmac_timestamp_header=(f.get('hmac_timestamp_header') or '').strip();a.hmac_timestamp_tolerance_seconds=form_int(f,'hmac_timestamp_tolerance_seconds',300,1,86400);new_secret=f.get('auth_secret') or ''
-    if a.auth_type!='none' and not new_secret and not a.secret_encrypted:return render(request,db,'endpoint_form.html',item=ep,error='Secret ist für diese Authentifizierung erforderlich.')
+    a=ep.auth or EndpointAuth(endpoint_id=ep.id);previous_auth_type=a.auth_type or 'none';a.auth_type=f.get('auth_type') or 'none';a.username=(f.get('auth_username') or '').strip();a.header_name=(f.get('auth_header_name') or '').strip();a.hmac_algorithm=f.get('hmac_algorithm') or 'sha256';a.hmac_payload_basis=f.get('hmac_payload_basis') or 'raw_body';a.hmac_payload_template=(f.get('hmac_payload_template') or '{{raw_body}}').strip();a.hmac_signature_prefix=f.get('hmac_signature_prefix') or '';a.hmac_verify_timestamp=f.get('hmac_verify_timestamp')=='on';a.hmac_timestamp_header=(f.get('hmac_timestamp_header') or '').strip();a.hmac_timestamp_tolerance_seconds=form_int(f,'hmac_timestamp_tolerance_seconds',300,1,86400);new_secret=f.get('auth_secret') or ''
+    if a.auth_type!='none' and not new_secret and (not a.secret_encrypted or previous_auth_type!=a.auth_type):return render(request,db,'endpoint_form.html',item=ep,error='Secret ist für diese Authentifizierung erforderlich.')
     if a.auth_type=='basic' and not a.username:return render(request,db,'endpoint_form.html',item=ep,error='Benutzername ist für Basic Auth erforderlich.')
     try:
         validate_header_name(a.header_name)
@@ -207,7 +208,8 @@ async def endpoint_save(request:Request,db:Session=Depends(get_db)):
                 if not a.hmac_timestamp_header:return render(request,db,'endpoint_form.html',item=ep,error='Timestamp-Header ist für die HMAC Timestamp-Prüfung erforderlich.')
             if '\r' in a.hmac_signature_prefix or '\n' in a.hmac_signature_prefix:return render(request,db,'endpoint_form.html',item=ep,error='Ungültiges HMAC Signatur-Präfix.')
     except ValueError as exc:return render(request,db,'endpoint_form.html',item=ep,error=str(exc))
-    if new_secret:a.secret_encrypted=encrypt(new_secret)
+    if a.auth_type=='none':a.secret_encrypted='';a.username=''
+    elif new_secret:a.secret_encrypted=encrypt(new_secret)
     if not ep.auth:db.add(a)
     db.commit();return RedirectResponse(f'/endpoints/{ep.id}',303)
 
@@ -227,7 +229,7 @@ async def endpoint_duplicate(eid:int,request:Request,db:Session=Depends(get_db))
         n+=1;slug=f'{base}-{n}'
     ep=IncomingEndpoint(name=src.name+' Copy',description=src.description,slug=slug,active=False,methods=list(src.methods or []),content_types=list(src.content_types or []),max_payload_bytes=src.max_payload_bytes,rate_limit_per_minute=src.rate_limit_per_minute,request_timeout_seconds=src.request_timeout_seconds,ip_allowlist=list(src.ip_allowlist or []),ip_denylist=list(src.ip_denylist or []),synchronous=src.synchronous,retention_success_days=src.retention_success_days,retention_failed_days=src.retention_failed_days)
     db.add(ep);db.flush();sa=src.auth
-    ep.auth=EndpointAuth(auth_type=sa.auth_type if sa else 'none',username=sa.username if sa else '',secret_encrypted=sa.secret_encrypted if sa and f.get('include_secrets')=='on' else '',header_name=sa.header_name if sa else '',hmac_algorithm=sa.hmac_algorithm if sa else 'sha256',hmac_payload_basis=sa.hmac_payload_basis if sa else 'raw_body',hmac_payload_template=sa.hmac_payload_template if sa else '{{raw_body}}',hmac_signature_prefix=sa.hmac_signature_prefix if sa else '',hmac_verify_timestamp=sa.hmac_verify_timestamp if sa else False,hmac_timestamp_header=sa.hmac_timestamp_header if sa else '',hmac_timestamp_tolerance_seconds=sa.hmac_timestamp_tolerance_seconds if sa else 300)
+    ep.auth=EndpointAuth(auth_type=sa.auth_type if sa else 'none',username=sa.username if sa else '',secret_encrypted=sa.secret_encrypted if sa and sa.auth_type!='none' and f.get('include_secrets')=='on' else '',header_name=sa.header_name if sa else '',hmac_algorithm=sa.hmac_algorithm if sa else 'sha256',hmac_payload_basis=sa.hmac_payload_basis if sa else 'raw_body',hmac_payload_template=sa.hmac_payload_template if sa else '{{raw_body}}',hmac_signature_prefix=sa.hmac_signature_prefix if sa else '',hmac_verify_timestamp=sa.hmac_verify_timestamp if sa else False,hmac_timestamp_header=sa.hmac_timestamp_header if sa else '',hmac_timestamp_tolerance_seconds=sa.hmac_timestamp_tolerance_seconds if sa else 300)
     for flow in db.scalars(select(Flow).where(Flow.endpoint_id==src.id).order_by(Flow.id)).all(): clone_flow_to_endpoint(db,flow,ep.id,f.get('include_secrets')=='on')
     db.commit();return RedirectResponse(f'/endpoints/{ep.id}',303)
 
@@ -327,10 +329,13 @@ async def endpoint_target_save(eid:int,fid:int,request:Request,db:Session=Depend
         is_modal=f.get('modal')=='1';template='target_editor_fragment.html' if is_modal else 'target_editor.html'
         return render(request,db,template,endpoint=flow.endpoint,flow=flow,item=d,route=route,branch=f.get('branch') or 'always',sample_event=sample,sample_paths=(flatten_paths(event_payload(sample)) if sample else []),sample_aux_paths=([x for x in paths if x[0].startswith(('headers.','query.','meta.'))] if sample else []),sample_events=events,sample_context=(event_context(sample) if sample else {}),sample_body=(event_payload(sample) if sample else {}),error=str(e),modal=is_modal)
     d.endpoint_id=eid;d.name=(f.get('name') or '').strip() or destination_name_from_url(url)
+    previous_auth_type=d.auth_type or 'none'
     d.description=(f.get('description') or '').strip();d.active=f.get('active')=='on';d.kind='http';submitted_mode=f.get('request_mode');has_mapping=any((f.get(f'map_target_{i}') or '').strip() for i in range(100));d.request_mode=submitted_mode if submitted_mode in ('passthrough','custom') else ('custom' if has_mapping else 'passthrough');d.method=validate_methods([(f.get('method') or 'POST').upper()])[0];d.url=url;d.query_params=parse_kv(f.get('query_params'));d.headers=parse_kv(f.get('headers'));d.auth_type=f.get('auth_type') or 'none';d.auth_username=(f.get('auth_username') or '').strip();d.auth_header_name=(f.get('auth_header_name') or '').strip();new_secret=f.get('auth_secret') or ''
     validate_headers(d.headers);validate_header_name(d.auth_header_name)
-    if d.auth_type!='none' and not new_secret and not d.auth_secret_encrypted: raise HTTPException(400,'Secret ist für diese Authentifizierung erforderlich')
-    if new_secret:d.auth_secret_encrypted=encrypt(new_secret)
+    if d.auth_type!='none' and not new_secret and (not d.auth_secret_encrypted or previous_auth_type!=d.auth_type): raise HTTPException(400,'Secret ist für diese Authentifizierung erforderlich')
+    if d.auth_type=='basic' and not d.auth_username: raise HTTPException(400,'Benutzername ist für Basic Auth erforderlich')
+    if d.auth_type=='none':d.auth_secret_encrypted='';d.auth_username=''
+    elif new_secret:d.auth_secret_encrypted=encrypt(new_secret)
     d.timeout_seconds=form_int(f,'timeout_seconds',15,1,300);d.verify_tls=f.get('verify_tls')=='on';d.retry_attempts=form_int(f,'retry_attempts',5,1,20);d.retry_delays=[int(x) for x in parse_lines(f.get('retry_delays')) if x.isdigit()] or [30,120,600,1800];d.retry_exponential=f.get('retry_exponential')=='on';d.retry_statuses=[int(x) for x in parse_lines(f.get('retry_statuses')) if x.isdigit()] or [429,500,502,503,504];d.allow_private=f.get('allow_private')=='on';d.allow_localhost=f.get('allow_localhost')=='on'
     branch=f.get('branch') or ('always' if flow.mode=='direct' else 'matched')
     if branch not in ('matched','else','always'): raise HTTPException(400,'Ungültiger Branch')
@@ -666,56 +671,33 @@ async def settings_password(request:Request,db:Session=Depends(get_db)):
 @router.get('/settings/export')
 def export_config(request:Request,db:Session=Depends(get_db)):
     require_user(request,db)
-    eps=db.scalars(select(IncomingEndpoint)).all();dests=db.scalars(select(Destination)).all();flows=db.scalars(select(Flow)).all()
-    data={'version':__version__,'endpoints':[],'destinations':[],'flows':[]}
-    for e in eps:data['endpoints'].append({'name':e.name,'description':e.description,'slug':e.slug,'active':e.active,'methods':e.methods,'content_types':e.content_types,'max_payload_bytes':e.max_payload_bytes,'rate_limit_per_minute':e.rate_limit_per_minute,'ip_allowlist':e.ip_allowlist,'ip_denylist':e.ip_denylist,'auth_type':e.auth.auth_type if e.auth else 'none','auth_header_name':e.auth.header_name if e.auth else '','hmac_algorithm':e.auth.hmac_algorithm if e.auth else 'sha256','hmac_payload_basis':e.auth.hmac_payload_basis if e.auth else 'raw_body','hmac_payload_template':e.auth.hmac_payload_template if e.auth else '{{raw_body}}','hmac_signature_prefix':e.auth.hmac_signature_prefix if e.auth else '','hmac_verify_timestamp':e.auth.hmac_verify_timestamp if e.auth else False,'hmac_timestamp_header':e.auth.hmac_timestamp_header if e.auth else '','hmac_timestamp_tolerance_seconds':e.auth.hmac_timestamp_tolerance_seconds if e.auth else 300})
-    for d in dests:data['destinations'].append({'endpoint':d.endpoint.name if d.endpoint else None,'name':d.name,'description':d.description,'active':d.active,'request_mode':getattr(d,'request_mode','custom'),'method':d.method,'url':d.url,'query_params':d.query_params,'headers':d.headers,'auth_type':d.auth_type,'auth_header_name':d.auth_header_name,'timeout_seconds':d.timeout_seconds,'verify_tls':d.verify_tls,'retry_attempts':d.retry_attempts,'retry_delays':d.retry_delays,'retry_statuses':d.retry_statuses})
-    for f in flows:data['flows'].append({'name':f.name,'active':f.active,'mode':f.mode,'endpoint':f.endpoint.name,'condition_logic':f.condition_logic,'rules':[{'field':r.field_path,'operator':r.operator,'value':r.value_json} for r in f.rules],'mappings':[{'target':m.target_path,'source_type':m.source_type,'source':m.source_value,'static_type':m.static_type,'fallback':m.fallback_json,'transforms':m.transforms} for m in f.mappings],'routes':[{'destination':r.destination.name,'branch':r.branch,'mappings':[{'target':m.target_path,'source_type':m.source_type,'source':m.source_value,'static_type':m.static_type,'fallback':m.fallback_json,'transforms':m.transforms} for m in r.mappings]} for r in f.routes if r.destination]})
-    body=json.dumps(data,ensure_ascii=False,indent=2);return Response(body,media_type='application/json',headers={'Content-Disposition':'attachment; filename="zentwhook-config.json"','Cache-Control':'no-store'})
+    data=export_configuration(db,include_secrets=False,version=__version__)
+    body=json.dumps(data,ensure_ascii=False,indent=2)
+    return Response(body,media_type='application/json',headers={'Content-Disposition':'attachment; filename="zentwhook-config.json"','Cache-Control':'no-store'})
 
 @router.post('/settings/export-secrets')
 async def export_config_secrets(request:Request,db:Session=Depends(get_db)):
-    f=await form_with_csrf(request)
+    require_user(request,db);f=await form_with_csrf(request)
     if f.get('confirm')!='on':raise HTTPException(400,'Bestätigung erforderlich')
-    eps=db.scalars(select(IncomingEndpoint)).all();dests=db.scalars(select(Destination)).all();flows=db.scalars(select(Flow)).all()
-    data={'version':__version__,'contains_secrets':True,'endpoints':[],'destinations':[],'flows':[]}
-    for e in eps:data['endpoints'].append({'name':e.name,'description':e.description,'slug':e.slug,'active':e.active,'methods':e.methods,'content_types':e.content_types,'max_payload_bytes':e.max_payload_bytes,'rate_limit_per_minute':e.rate_limit_per_minute,'ip_allowlist':e.ip_allowlist,'ip_denylist':e.ip_denylist,'auth_type':e.auth.auth_type if e.auth else 'none','auth_username':e.auth.username if e.auth else '','auth_header_name':e.auth.header_name if e.auth else '','auth_secret':decrypt(e.auth.secret_encrypted) if e.auth and e.auth.secret_encrypted else '','hmac_algorithm':e.auth.hmac_algorithm if e.auth else 'sha256','hmac_payload_basis':e.auth.hmac_payload_basis if e.auth else 'raw_body','hmac_payload_template':e.auth.hmac_payload_template if e.auth else '{{raw_body}}','hmac_signature_prefix':e.auth.hmac_signature_prefix if e.auth else '','hmac_verify_timestamp':e.auth.hmac_verify_timestamp if e.auth else False,'hmac_timestamp_header':e.auth.hmac_timestamp_header if e.auth else '','hmac_timestamp_tolerance_seconds':e.auth.hmac_timestamp_tolerance_seconds if e.auth else 300})
-    for d in dests:data['destinations'].append({'endpoint':d.endpoint.name if d.endpoint else None,'name':d.name,'description':d.description,'active':d.active,'request_mode':getattr(d,'request_mode','custom'),'method':d.method,'url':d.url,'query_params':d.query_params,'headers':d.headers,'auth_type':d.auth_type,'auth_username':d.auth_username,'auth_header_name':d.auth_header_name,'auth_secret':decrypt(d.auth_secret_encrypted) if d.auth_secret_encrypted else '','timeout_seconds':d.timeout_seconds,'verify_tls':d.verify_tls,'retry_attempts':d.retry_attempts,'retry_delays':d.retry_delays,'retry_statuses':d.retry_statuses})
-    for flow in flows:data['flows'].append({'name':flow.name,'active':flow.active,'mode':flow.mode,'endpoint':flow.endpoint.name,'condition_logic':flow.condition_logic,'rules':[{'field':r.field_path,'operator':r.operator,'value':r.value_json} for r in flow.rules],'mappings':[{'target':m.target_path,'source_type':m.source_type,'source':m.source_value,'static_type':m.static_type,'fallback':m.fallback_json,'transforms':m.transforms} for m in flow.mappings],'routes':[{'destination':r.destination.name,'branch':r.branch,'mappings':[{'target':m.target_path,'source_type':m.source_type,'source':m.source_value,'static_type':m.static_type,'fallback':m.fallback_json,'transforms':m.transforms} for m in r.mappings]} for r in flow.routes if r.destination]})
-    body=json.dumps(data,ensure_ascii=False,indent=2);return Response(body,media_type='application/json',headers={'Content-Disposition':'attachment; filename="zentwhook-config-with-secrets.json"','Cache-Control':'no-store'})
+    data=export_configuration(db,include_secrets=True,version=__version__)
+    body=json.dumps(data,ensure_ascii=False,indent=2)
+    return Response(body,media_type='application/json',headers={'Content-Disposition':'attachment; filename="zentwhook-config-with-secrets.json"','Cache-Control':'no-store'})
 
 @router.post('/settings/import')
 async def import_config(request:Request,file:UploadFile=File(...),db:Session=Depends(get_db)):
+    require_user(request,db)
     # Multipart CSRF is read here after FastAPI has parsed the upload.
     form=await request.form();request.state.form_csrf=form.get('_csrf');require_csrf(request)
     raw=await file.read(2*1024*1024+1)
     if len(raw)>2*1024*1024:raise HTTPException(413,'Import-Datei zu groß')
-    try:data=json.loads(raw.decode())
-    except Exception:raise HTTPException(400,'Ungültige JSON-Datei')
-    ep_by_name={e.name:e for e in db.scalars(select(IncomingEndpoint)).all()};dest_by_key={(d.endpoint_id,d.name):d for d in db.scalars(select(Destination)).all()}
-    for x in data.get('endpoints',[]):
-        if x.get('name') in ep_by_name:continue
-        slug=safe_slug(x.get('slug') or x.get('name','endpoint'));base=slug;n=1
-        while db.scalar(select(IncomingEndpoint).where(IncomingEndpoint.slug==slug)):n+=1;slug=f'{base}-{n}'
-        validate_cidrs(x.get('ip_allowlist',[]));validate_cidrs(x.get('ip_denylist',[]));validate_header_name(x.get('auth_header_name',''))
-        e=IncomingEndpoint(name=x['name'],description=x.get('description',''),slug=slug,active=bool(x.get('active',True)),methods=x.get('methods',['POST']),content_types=x.get('content_types',['*/*']),max_payload_bytes=int(x.get('max_payload_bytes',1048576)),rate_limit_per_minute=int(x.get('rate_limit_per_minute',120)),ip_allowlist=x.get('ip_allowlist',[]),ip_denylist=x.get('ip_denylist',[]));db.add(e);db.flush();e.auth=EndpointAuth(auth_type=x.get('auth_type','none'),username=x.get('auth_username',''),header_name=x.get('auth_header_name',''),secret_encrypted=encrypt(x.get('auth_secret','')) if x.get('auth_secret') else '',hmac_algorithm=x.get('hmac_algorithm','sha256'),hmac_payload_basis=x.get('hmac_payload_basis','raw_body'),hmac_payload_template=x.get('hmac_payload_template','{{raw_body}}'),hmac_signature_prefix=x.get('hmac_signature_prefix',''),hmac_verify_timestamp=bool(x.get('hmac_verify_timestamp',False)),hmac_timestamp_header=x.get('hmac_timestamp_header',''),hmac_timestamp_tolerance_seconds=int(x.get('hmac_timestamp_tolerance_seconds',300)));ep_by_name[e.name]=e
-    for x in data.get('destinations',[]):
-        ep=ep_by_name.get(x.get('endpoint'))
-        if not ep:
-            continue
-        if (ep.id,x.get('name')) in dest_by_key:continue
-        validate_destination_url(x.get('url',''),allow_private=True,allow_localhost=True,resolve=False);validate_headers(x.get('headers',{}));validate_header_name(x.get('auth_header_name',''))
-        d=Destination(endpoint_id=ep.id,name=x['name'],description=x.get('description',''),active=bool(x.get('active',True)),request_mode=x.get('request_mode','custom'),method=x.get('method','POST'),url=x['url'],query_params=x.get('query_params',{}),headers=x.get('headers',{}),auth_type=x.get('auth_type','none'),auth_username=x.get('auth_username',''),auth_header_name=x.get('auth_header_name',''),auth_secret_encrypted=encrypt(x.get('auth_secret','')) if x.get('auth_secret') else '',timeout_seconds=int(x.get('timeout_seconds',15)),verify_tls=bool(x.get('verify_tls',True)),retry_attempts=int(x.get('retry_attempts',5)),retry_delays=x.get('retry_delays',[30,120,600,1800]),retry_statuses=x.get('retry_statuses',[429,500,502,503,504]));db.add(d);db.flush();dest_by_key[(ep.id,d.name)]=d
-    for x in data.get('flows',[]):
-        if db.scalar(select(Flow).where(Flow.name==x.get('name'))):continue
-        ep=ep_by_name.get(x.get('endpoint')); 
-        if not ep:continue
-        flow=Flow(name=x['name'],active=bool(x.get('active',True)),mode=x.get('mode','conditional'),endpoint_id=ep.id,condition_logic=x.get('condition_logic','AND'));db.add(flow);db.flush()
-        for i,r in enumerate(x.get('rules',[])):db.add(FlowRule(flow_id=flow.id,position=i,field_path=r.get('field',''),operator=r.get('operator','equals'),value_json=r.get('value')))
-        for i,m in enumerate(x.get('mappings',[])):db.add(Mapping(flow_id=flow.id,position=i,target_path=m.get('target',''),source_type=m.get('source_type','field'),source_value=m.get('source',''),static_type=m.get('static_type','string'),fallback_json=m.get('fallback'),transforms=m.get('transforms',[])))
-        for r in x.get('routes',[]):
-            d=dest_by_key.get((ep.id,r.get('destination')))
-            if d:
-                route=FlowDestination(flow_id=flow.id,destination_id=d.id,branch=r.get('branch','matched'));db.add(route);db.flush()
-                for i,m in enumerate(r.get('mappings',[])): db.add(RouteMapping(route_id=route.id,position=i,target_path=m.get('target',''),source_type=m.get('source_type','field'),source_value=m.get('source',''),static_type=m.get('static_type','string'),fallback_json=m.get('fallback'),transforms=m.get('transforms',[])))
-    db.commit();return RedirectResponse('/settings',303)
+    try:data=json.loads(raw.decode('utf-8'))
+    except (UnicodeDecodeError,json.JSONDecodeError):raise HTTPException(400,'Ungültige JSON-Datei')
+    try:
+        import_configuration(db,data)
+        db.commit()
+    except ConfigurationImportError as exc:
+        db.rollback();raise HTTPException(400,f'Import abgebrochen: {exc}') from exc
+    except Exception:
+        db.rollback();raise
+    return RedirectResponse('/settings',303)
+

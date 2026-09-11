@@ -36,6 +36,7 @@ app=FastAPI(title='ZentWHook',version=__version__,docs_url=None,redoc_url=None,o
 templates=Jinja2Templates(directory=str(BASE/'templates'))
 app.state.templates=templates
 templates.env.globals['_']=lambda key:key
+templates.env.globals['asset_version']=__version__
 app.mount('/static',StaticFiles(directory=str(BASE/'static')),name='static')
 
 @app.middleware('http')

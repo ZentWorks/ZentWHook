@@ -5,7 +5,7 @@
 <form method="post" action="/endpoints/{{ endpoint.id }}/flows/{{ item.id }}/save" data-flow-editor-form data-flow-mode="{{ item.mode }}"><input type="hidden" name="_csrf" value="{{ csrf }}">
 <div class="flow-topbar">
   <div class="flow-top-title"><div class="flow-name-row"><input class="flow-name-input" name="name" value="{{ item.name }}" aria-label="{{ _('Name') }}"><span class="badge">{{ _('Direkt') if item.mode=='direct' else _('Entweder / Oder') }}</span></div></div>
-  <div class="flow-top-actions"><label class="switchcheck"><input type="checkbox" name="active" {% if item.active %}checked{% endif %}><span>{{ _('Aktiv') }}</span></label><button class="btn primary" type="submit"><svg class="ico"><use href="#i-save"/></svg>{{ _('Speichern') }}</button></div>
+  <div class="flow-top-actions"><label class="switchcheck"><input type="checkbox" name="active" {% if item.active %}checked{% endif %}><span>{{ _('Aktiv') }}</span></label><span class="save-success-indicator" data-save-success hidden aria-live="polite" title="{{ _('Gespeichert') }}">✓</span><button class="btn primary" type="submit"><svg class="ico"><use href="#i-save"/></svg>{{ _('Speichern') }}</button></div>
 </div>
 
 {% if item.mode=='direct' %}

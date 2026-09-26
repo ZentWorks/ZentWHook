@@ -99,6 +99,35 @@ def set_path(root,path,value):
                 if tok not in cur: cur[tok]=[] if isinstance(nxt,int) else {}
                 cur=cur[tok]
 
+_COMBINE_TOKEN_RE=re.compile(r'\{\{\s*([^}]+?)\s*\}\}')
+
+def decode_combine_literal(text):
+    """Decode supported escapes in literal combine text only.
+
+    Values inserted through {{ ... }} are deliberately left untouched.
+    """
+    text=str(text or '')
+    out=[];i=0
+    escapes={'n':'\n','r':'\r','t':'\t','\\':'\\'}
+    while i<len(text):
+        ch=text[i]
+        if ch=='\\' and i+1<len(text):
+            nxt=text[i+1]
+            if nxt in escapes:
+                out.append(escapes[nxt]);i+=2;continue
+        out.append(ch);i+=1
+    return ''.join(out)
+
+def render_combine(template,data):
+    template=str(template or '')
+    out=[];pos=0
+    for match in _COMBINE_TOKEN_RE.finditer(template):
+        out.append(decode_combine_literal(template[pos:match.start()]))
+        out.append(str(get_path(data,match.group(1),'')))
+        pos=match.end()
+    out.append(decode_combine_literal(template[pos:]))
+    return ''.join(out)
+
 def build_mapping(data,mappings):
     out={}
     for m in mappings:
@@ -108,8 +137,7 @@ def build_mapping(data,mappings):
                 if m.fallback_json is not None: val=m.fallback_json
                 else: raise ValueError(f'Feld im Request nicht vorhanden: {m.source_value}')
         elif m.source_type=='static': val=coerce_static(m.source_value,m.static_type)
-        elif m.source_type=='combine':
-            val=re.sub(r'\{\{\s*([^}]+?)\s*\}\}',lambda x:str(get_path(data,x.group(1),'')),m.source_value)
+        elif m.source_type=='combine': val=render_combine(m.source_value,data)
         else: val=m.source_value
         for tr in (m.transforms or []): val=apply_transform(val,tr)
         set_path(out,m.target_path,val)

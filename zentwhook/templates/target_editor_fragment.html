@@ -79,7 +79,7 @@
   <label class="check"><input type="checkbox" name="allow_localhost" {% if item and item.allow_localhost %}checked{% endif %}> {{ _('Localhost erlauben') }}</label>
 </div></details>
 
-<div class="actions sticky-actions"><button class="btn primary"><svg class="ico"><use href="#i-save"/></svg>{{ _('Speichern') }}</button>{% if modal %}<button class="btn" type="button" data-close-target-modal>{{ _('Abbrechen') }}</button>{% else %}<a class="btn" href="/endpoints/{{ endpoint.id }}/flows/{{ flow.id }}/edit">{{ _('Abbrechen') }}</a>{% endif %}</div>
+<div class="actions sticky-actions"><span class="save-success-indicator" data-save-success hidden aria-live="polite" title="{{ _('Gespeichert') }}">✓</span><button class="btn primary"><svg class="ico"><use href="#i-save"/></svg>{{ _('Speichern') }}</button>{% if modal %}<button class="btn" type="button" data-close-target-modal>{{ _('Abbrechen') }}</button>{% else %}<a class="btn" href="/endpoints/{{ endpoint.id }}/flows/{{ flow.id }}/edit">{{ _('Abbrechen') }}</a>{% endif %}</div>
 </form>
 {% if route %}<form method="post" action="/endpoints/{{ endpoint.id }}/flows/{{ flow.id }}/targets/{{ route.id }}/delete" class="danger-zone" data-target-delete-form><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="modal" value="{{ 1 if modal else 0 }}"><button class="btn danger"><svg class="ico"><use href="#i-delete"/></svg>{{ _('Ziel entfernen') }}</button></form>{% endif %}
 

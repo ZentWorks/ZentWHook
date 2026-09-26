@@ -114,3 +114,7 @@ label.check:has(input[type="checkbox"]:focus-visible),label.switchcheck:has(inpu
 .success{border:1px solid color-mix(in srgb,var(--ok) 55%,var(--line));background:color-mix(in srgb,var(--ok) 10%,var(--panel));color:color-mix(in srgb,var(--ok) 80%,var(--text));padding:10px 12px;border-radius:6px;margin-bottom:14px}
 .account-security-panel{margin-top:0}.password-change-form{max-width:860px}.account-security-note{margin:12px 0}.password-change-form>.actions{margin-top:0}.password-spacer{min-height:1px}
 @media(max-width:760px){.mobilebar a.active{box-shadow:inset 0 2px 0 var(--accent)}.password-spacer{display:none}}
+
+/* 0.3.23 save confirmation */
+.save-success-indicator{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:32px;color:var(--ok);font-size:21px;font-weight:800;line-height:1;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--ok) 30%,transparent))}
+.save-success-indicator[hidden]{display:none!important}

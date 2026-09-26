@@ -43,6 +43,20 @@ def type_name(v):
     if isinstance(v,list):return 'array'
     return 'string'
 
+def decode_string_literal(text):
+    """Decode the supported escape sequences in user-entered string literals."""
+    text=str(text or '')
+    out=[];i=0
+    escapes={'n':'\n','r':'\r','t':'\t','\\':'\\'}
+    while i<len(text):
+        ch=text[i]
+        if ch=='\\' and i+1<len(text):
+            nxt=text[i+1]
+            if nxt in escapes:
+                out.append(escapes[nxt]);i+=2;continue
+        out.append(ch);i+=1
+    return ''.join(out)
+
 def coerce_static(value,typ):
     if typ=='null':return None
     if typ=='boolean':return str(value).lower() in ('true','1','yes','on')
@@ -56,7 +70,7 @@ def coerce_static(value,typ):
         if typ=='object' and not isinstance(parsed,dict):raise ValueError('Statischer Wert muss ein Object sein')
         if typ=='array' and not isinstance(parsed,list):raise ValueError('Statischer Wert muss ein Array sein')
         return parsed
-    return str(value)
+    return decode_string_literal(value)
 
 def apply_transform(value, tr):
     op=tr.get('op'); arg=tr.get('arg','')
@@ -101,31 +115,14 @@ def set_path(root,path,value):
 
 _COMBINE_TOKEN_RE=re.compile(r'\{\{\s*([^}]+?)\s*\}\}')
 
-def decode_combine_literal(text):
-    """Decode supported escapes in literal combine text only.
-
-    Values inserted through {{ ... }} are deliberately left untouched.
-    """
-    text=str(text or '')
-    out=[];i=0
-    escapes={'n':'\n','r':'\r','t':'\t','\\':'\\'}
-    while i<len(text):
-        ch=text[i]
-        if ch=='\\' and i+1<len(text):
-            nxt=text[i+1]
-            if nxt in escapes:
-                out.append(escapes[nxt]);i+=2;continue
-        out.append(ch);i+=1
-    return ''.join(out)
-
 def render_combine(template,data):
     template=str(template or '')
     out=[];pos=0
     for match in _COMBINE_TOKEN_RE.finditer(template):
-        out.append(decode_combine_literal(template[pos:match.start()]))
+        out.append(decode_string_literal(template[pos:match.start()]))
         out.append(str(get_path(data,match.group(1),'')))
         pos=match.end()
-    out.append(decode_combine_literal(template[pos:]))
+    out.append(decode_string_literal(template[pos:]))
     return ''.join(out)
 
 def build_mapping(data,mappings):

@@ -1,0 +1,121 @@
+from __future__ import annotations
+import base64, hashlib, hmac, ipaddress, json, secrets, time
+from cryptography.fernet import Fernet
+from fastapi import Request, HTTPException
+from .config import data_path, settings
+
+SENSITIVE={'authorization','proxy_authorization','cookie','set_cookie','x_api_key','x_auth_token','password','token','access_token','secret','api_key'}
+
+def _read_key(name):
+    p=data_path(name)
+    if not p.exists():
+        from .bootstrap import ensure; ensure(name)
+    return p.read_text().strip().encode()
+
+def fernet(): return Fernet(_read_key('encryption.key'))
+def encrypt(value:str)->str:
+    if not value: return ''
+    return fernet().encrypt(value.encode()).decode()
+def decrypt(value:str)->str:
+    if not value: return ''
+    return fernet().decrypt(value.encode()).decode()
+
+def hash_password(password:str)->str:
+    salt=secrets.token_bytes(16); n=2**15; r=8; p=1
+    digest=hashlib.scrypt(password.encode(),salt=salt,n=n,r=r,p=p,dklen=32,maxmem=64*1024*1024)
+    return f'scrypt${n}${r}${p}${base64.urlsafe_b64encode(salt).decode()}${base64.urlsafe_b64encode(digest).decode()}'
+def verify_password(password, encoded):
+    try:
+        _,ns,rs,ps,salt,dig=encoded.split('$'); salt=base64.urlsafe_b64decode(salt); expected=base64.urlsafe_b64decode(dig)
+        actual=hashlib.scrypt(password.encode(),salt=salt,n=int(ns),r=int(rs),p=int(ps),dklen=len(expected),maxmem=64*1024*1024)
+        return hmac.compare_digest(actual,expected)
+    except Exception: return False
+
+def sign_session(user_id:int, csrf:str, session_version:int=1, ttl=43200):
+    payload=f'{user_id}:{int(time.time())+ttl}:{csrf}:{int(session_version)}'
+    sig=hmac.new(_read_key('session.key'),payload.encode(),hashlib.sha256).hexdigest()
+    return base64.urlsafe_b64encode(f'{payload}:{sig}'.encode()).decode()
+def read_session(token:str|None):
+    if not token:return None
+    try:
+        raw=base64.urlsafe_b64decode(token).decode(); parts=raw.split(':')
+        if len(parts)==4: # backward-compatible pre-0.3.20 session
+            uid,exp,csrf,sig=parts; session_version=1; payload=f'{uid}:{exp}:{csrf}'
+        elif len(parts)==5:
+            uid,exp,csrf,sv,sig=parts; session_version=int(sv); payload=f'{uid}:{exp}:{csrf}:{sv}'
+        else:return None
+        good=hmac.new(_read_key('session.key'),payload.encode(),hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig,good) or int(exp)<time.time(): return None
+        return {'user_id':int(uid),'csrf':csrf,'session_version':session_version}
+    except Exception:return None
+
+def require_csrf(request:Request):
+    sess=read_session(request.cookies.get('zentwhook_session'))
+    if not sess or getattr(request.state,'session_revoked',False): raise HTTPException(401,'Login required')
+    token=request.headers.get('x-csrf-token')
+    if not token: token=getattr(request.state,'form_csrf',None)
+    if not token or not hmac.compare_digest(str(token),str(sess['csrf'])): raise HTTPException(403,'CSRF validation failed')
+
+def mask_value(name:str,value):
+    lname=name.lower().replace('-','_')
+    return '********' if lname in SENSITIVE or any(x in lname for x in ['password','secret','token','api_key']) else value
+
+def mask_json(value, custom:list[str]|None=None):
+    custom={x.lower() for x in (custom or [])}
+    if isinstance(value,dict):
+        return {k:('********' if k.lower() in custom or mask_value(k,'x')=='********' else mask_json(v,custom)) for k,v in value.items()}
+    if isinstance(value,list): return [mask_json(v,custom) for v in value]
+    return value
+
+def ip_in_any(ip, cidrs):
+    try:
+        addr=ipaddress.ip_address(ip)
+        return any(addr in ipaddress.ip_network(c,strict=False) for c in cidrs)
+    except ValueError: return False
+
+def _ip_literal(value:str):
+    value=(value or '').strip()
+    if not value:return None
+    try:return ipaddress.ip_address(value)
+    except ValueError:return None
+
+def _trusted_ip(addr, trusted_proxies:list[str]):
+    if addr is None:return False
+    try:return any(addr in ipaddress.ip_network(c,strict=False) for c in trusted_proxies)
+    except ValueError:return False
+
+def client_ip(request:Request,trusted_proxies:list[str]):
+    remote_raw=request.client.host if request.client else ''
+    remote=_ip_literal(remote_raw)
+    # Forwarding headers are security-sensitive. They are considered only when
+    # the direct network peer is explicitly trusted; otherwise clients could
+    # spoof allowlists, rate-limit identities and the stored source address.
+    if remote is None or not trusted_proxies or not _trusted_ip(remote,trusted_proxies):
+        return str(remote) if remote is not None else remote_raw
+
+    xff_raw=request.headers.get('x-forwarded-for')
+    if xff_raw is not None:
+        parts=[part.strip() for part in xff_raw.split(',')]
+        # Treat a malformed chain as untrusted instead of skipping bad hops.
+        # Skipping would let an attacker influence which older entry is chosen.
+        chain=[_ip_literal(part) for part in parts]
+        if not parts or any(addr is None for addr in chain):
+            return str(remote)
+        # Walk from the direct peer backwards. Trusted proxy hops are stripped;
+        # the first non-trusted address is the client that reached that chain.
+        for addr in reversed(chain):
+            if _trusted_ip(addr,trusted_proxies):
+                continue
+            return str(addr)
+        # No untrusted client could be established from the chain. Fail closed.
+        return str(remote)
+
+    # Single-hop forwarding headers are accepted only from the trusted direct
+    # peer. X-Forwarded-For above is preferred because its proxy chain can be
+    # evaluated safely from right to left.
+    for name in ('cf-connecting-ip','x-real-ip'):
+        value=request.headers.get(name)
+        if value is None:continue
+        addr=_ip_literal(value)
+        return str(addr) if addr is not None else str(remote)
+    return str(remote)

@@ -30,7 +30,8 @@ def ctx(request, db, **extra):
     path=request.url.path
     if path.startswith(('/endpoints','/flows','/destinations')):nav_section='webhooks'
     elif path.startswith(('/events','/deliveries')):nav_section='events'
-    elif path.startswith(('/settings','/api/docs')):nav_section='settings'
+    elif path.startswith('/api/docs'):nav_section='api'
+    elif path.startswith('/settings'):nav_section='settings'
     else:nav_section='dashboard'
     return {'request':request,'user':user,'csrf':sess['csrf'],'lang':lang,'_':lambda key:t(lang,key),'version':__version__,'nav_section':nav_section,**extra}
 
@@ -635,7 +636,7 @@ def api_docs(request:Request,db:Session=Depends(get_db)):
         for method,meta in methods.items():
             if method.lower() not in ('get','post','put','patch','delete'):continue
             paths.append({'method':method.upper(),'path':path,'summary':meta.get('summary') or meta.get('operationId','')})
-    return render(request,db,'api_docs.html',paths=paths)
+    return render(request,db,'api_docs.html',paths=paths,api_spec={'paths':{p:m for p,m in spec.get('paths',{}).items() if p.startswith('/api/v1/')},'components':spec.get('components',{})})
 
 def settings_view_context(db:Session, **extra):
     return {'trusted':'\n'.join(get_setting(db,'trusted_proxies',[]) or []),'mask_fields':'\n'.join(get_setting(db,'mask_fields',[]) or []),'error':None,'password_error':None,'password_notice':None,**extra}
